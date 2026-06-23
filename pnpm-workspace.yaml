@@ -1,3 +1,7 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# pnpm 11 ativa minimumReleaseAge=1440 (1 dia) por padrão, bloqueando
+# pacotes recém-publicados. 0 desativa a verificação de idade.
+minimumReleaseAge: 0
