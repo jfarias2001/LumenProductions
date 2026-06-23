@@ -3,7 +3,7 @@ RUN corepack enable pnpm
 
 FROM base AS builder
 WORKDIR /app
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* .npmrc* ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* .npmrc* tsconfig.base.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile
