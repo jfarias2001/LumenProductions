@@ -1,5 +1,8 @@
 FROM node:22-alpine AS base
 RUN corepack enable pnpm
+# Prisma engines (query + schema/migration) precisam de libssl/openssl.
+# node:alpine (musl) não traz openssl por padrão -> engines falham ao carregar.
+RUN apk add --no-cache openssl
 
 FROM base AS builder
 WORKDIR /app
