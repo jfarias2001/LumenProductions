@@ -3,7 +3,6 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import { createServer } from 'node:http';
 import { Server as IOServer } from 'socket.io';
 import { config } from './config.js';
 import { setIO } from './lib/emitter.js';
@@ -17,11 +16,8 @@ import { prisma } from './lib/prisma.js';
 
 const fastify = Fastify({ logger: { level: config.nodeEnv === 'production' ? 'info' : 'debug' } });
 
-// ── HTTP server shared with Socket.io ─────────────────────────────────────────
-const httpServer = createServer(fastify.server);
-
-// ── Socket.io ────────────────────────────────────────────────────────────────
-const io = new IOServer(httpServer, {
+// ── Socket.io (shares Fastify's underlying HTTP server) ───────────────────────
+const io = new IOServer(fastify.server, {
   cors: { origin: config.corsOrigin, credentials: true },
 });
 setIO(io);
@@ -53,10 +49,8 @@ fastify.get('/health', async () => ({ ok: true, ts: new Date().toISOString() }))
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 try {
-  await fastify.ready();
-  httpServer.listen({ port: config.port, host: config.host }, () => {
-    fastify.log.info(`API listening on ${config.host}:${config.port}`);
-  });
+  await fastify.listen({ port: config.port, host: config.host });
+  fastify.log.info(`API listening on ${config.host}:${config.port}`);
 } catch (err) {
   fastify.log.error(err);
   await prisma.$disconnect();

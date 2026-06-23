@@ -56,4 +56,16 @@
 
 ---
 
+## [2026-06-23] Fix — Login travava em "Entrando…" (servidor HTTP não respondia)
+
+**Sintoma:** ao fazer login, o botão ficava eternamente em "Entrando…" e a tela não avançava ("carrega e não anda"), sem nenhum erro.
+
+**Causa:** em `apps/api/src/server.ts`, o código fazia `createServer(fastify.server)`, criando um **segundo** servidor HTTP sem nenhum handler do Fastify. Ele subia na porta 3001 sem erro e o Socket.io até conectava, mas toda requisição HTTP (incluindo `POST /api/v1/auth/login`) ficava pendurada sem resposta.
+
+**Correção:** Socket.io passou a ser anexado ao próprio servidor do Fastify (`new IOServer(fastify.server, …)`) e o start passou a usar `await fastify.listen(...)` em vez do `httpServer.listen(...)`. Removidos o import de `node:http` e o `fastify.ready()` redundante. Padrão recomendado para compartilhar o servidor entre Fastify e Socket.io.
+
+**Validação:** `tsc --noEmit` OK.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
