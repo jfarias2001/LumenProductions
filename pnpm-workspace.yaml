@@ -6,13 +6,14 @@ packages:
 # pacotes recém-publicados. 0 desativa a verificação de idade.
 minimumReleaseAge: 0
 
-# pnpm 10+ bloqueia scripts de build (postinstall) por padrão e o pnpm 11
-# trata isso como erro fatal. Liberar os pacotes que precisam compilar/baixar
-# binários nativos (argon2, esbuild, engines do Prisma).
-onlyBuiltDependencies:
-  - '@prisma/client'
-  - '@prisma/engines'
-  - argon2
-  - esbuild
-  - msgpackr-extract
-  - prisma
+# pnpm 11 bloqueia scripts de build (postinstall) e trata como erro fatal
+# (strictDepBuilds=true por padrão). O antigo onlyBuiltDependencies foi removido
+# no v11 e substituído por allowBuilds (mapa pacote: true). Liberar os pacotes
+# que precisam compilar/baixar binários nativos (argon2, esbuild, engines Prisma).
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  argon2: true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
