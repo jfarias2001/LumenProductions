@@ -1,0 +1,302 @@
+import { z } from 'zod';
+import {
+  AwarenessLevel,
+  AngleType,
+  ContentClass,
+  CreativeFormat,
+  DerivedAssetType,
+  HookStatus,
+  Pillar,
+  Role,
+  SignalSource,
+  Stage,
+  ValidationVerdict,
+} from './enums.js';
+import { VALIDATION_THRESHOLDS, SCRIPT_DURATION } from './constants.js';
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+export const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+export const RefreshSchema = z.object({
+  refreshToken: z.string(),
+});
+
+// ── User ─────────────────────────────────────────────────────────────────────
+
+export const CreateUserSchema = z.object({
+  name: z.string().min(2).max(100),
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: z.nativeEnum(Role),
+});
+
+export const UpdateUserSchema = CreateUserSchema.partial().omit({ password: true }).extend({
+  password: z.string().min(8).optional(),
+  active: z.boolean().optional(),
+});
+
+// ── Card ─────────────────────────────────────────────────────────────────────
+
+export const CreateCardSchema = z.object({
+  title: z.string().min(3).max(300),
+  stage: z.nativeEnum(Stage).default(Stage.SINAIS_MERCADO),
+  signalSource: z.nativeEnum(SignalSource).optional(),
+  signalContent: z.string().max(2000).optional(),
+  signalLink: z.string().url().optional(),
+  pillar: z.nativeEnum(Pillar).optional(),
+  awareness: z.nativeEnum(AwarenessLevel).optional(),
+  assigneeId: z.string().cuid().optional(),
+});
+
+export const UpdateCardSchema = z.object({
+  title: z.string().min(3).max(300).optional(),
+  persona: z.string().max(500).optional(),
+  pain: z.string().max(1000).optional(),
+  promise: z.string().max(500).optional(),
+  awareness: z.nativeEnum(AwarenessLevel).optional(),
+  pillar: z.nativeEnum(Pillar).optional(),
+  ctaText: z.string().max(300).optional(),
+  screenTexts: z.array(z.string()).optional(),
+  primaryMetric: z.string().max(200).optional(),
+  contentClass: z.nativeEnum(ContentClass).optional(),
+  signalSource: z.nativeEnum(SignalSource).optional(),
+  signalContent: z.string().max(2000).optional(),
+  signalLink: z.string().url().optional().or(z.literal('')).optional(),
+  rawFootageUrl: z.string().url().optional().or(z.literal('')).optional(),
+  editedVideoUrl: z.string().url().optional().or(z.literal('')).optional(),
+  referenceUrls: z.array(z.string().url()).optional(),
+  assigneeId: z.string().cuid().nullable().optional(),
+});
+
+export const TransitionSchema = z.object({
+  to: z.nativeEnum(Stage),
+});
+
+export const AssignSchema = z.object({
+  assigneeId: z.string().cuid().nullable(),
+});
+
+// ── Validation ───────────────────────────────────────────────────────────────
+
+const ScoreField = z.number().int().min(0).max(VALIDATION_THRESHOLDS.CRITERIA_MAX);
+
+export const ValidationSchema = z.object({
+  dorQuente: ScoreField,
+  clareza: ScoreField,
+  contraste: ScoreField,
+  especificidadeAgencia: ScoreField,
+  potencialComentarios: ScoreField,
+  potencialComercial: ScoreField,
+  aiJustifications: z.record(z.string()).optional(),
+  aiSuggested: z.boolean().optional(),
+  reviewedById: z.string().cuid().optional(),
+});
+
+// ── Angle ────────────────────────────────────────────────────────────────────
+
+export const CreateAngleSchema = z.object({
+  type: z.nativeEnum(AngleType),
+  text: z.string().min(5).max(500),
+  selected: z.boolean().optional(),
+  aiGenerated: z.boolean().optional(),
+});
+
+export const UpdateAngleSchema = CreateAngleSchema.partial();
+
+// ── Hook ─────────────────────────────────────────────────────────────────────
+
+export const CreateHookSchema = z.object({
+  text: z.string().min(5).max(300),
+  status: z.nativeEnum(HookStatus).optional(),
+  aiGenerated: z.boolean().optional(),
+});
+
+export const UpdateHookSchema = CreateHookSchema.partial();
+
+// ── Script ───────────────────────────────────────────────────────────────────
+
+export const ScriptSchema = z.object({
+  dor: z.string().min(10).max(1000),
+  quebra: z.string().min(10).max(1000),
+  mecanismo: z.string().min(10).max(1000),
+  beneficio: z.string().min(10).max(1000),
+  cta: z.string().min(5).max(300),
+  durationSec: z.number().int().min(SCRIPT_DURATION.MIN_SEC).max(SCRIPT_DURATION.MAX_SEC),
+  strongPhrases: z.array(z.string()).optional(),
+  approved: z.boolean().optional(),
+  aiGenerated: z.boolean().optional(),
+});
+
+// ── Creative Direction ────────────────────────────────────────────────────────
+
+export const CreativeDirectionSchema = z.object({
+  format: z.nativeEnum(CreativeFormat),
+  visualNotes: z.string().max(1000).optional(),
+  referenceUrls: z.array(z.string().url()).optional(),
+});
+
+// ── Copy ─────────────────────────────────────────────────────────────────────
+
+export const CopyContentSchema = z.object({
+  caption: z.string().min(10).max(2200),
+  ctaVariations: z.array(z.string()).min(1),
+  aiGenerated: z.boolean().optional(),
+});
+
+// ── Schedule ─────────────────────────────────────────────────────────────────
+
+export const ScheduleSchema = z.object({
+  objective: z.string().min(5).max(300),
+  audience: z.string().min(5).max(300),
+  cta: z.string().min(5).max(300),
+  primaryMetric: z.string().min(3).max(200),
+  hypothesis: z.string().min(5).max(500),
+  scheduledFor: z.string().datetime(),
+});
+
+// ── Retention Review ──────────────────────────────────────────────────────────
+
+export const RetentionAnswerSchema = z.object({
+  question: z.string(),
+  good: z.boolean(),
+});
+
+export const RetentionReviewSchema = z.object({
+  answers: z.array(RetentionAnswerSchema).min(1),
+  notes: z.string().max(1000).optional(),
+  reviewerId: z.string().cuid().optional(),
+});
+
+// ── Checklist ────────────────────────────────────────────────────────────────
+
+export const ChecklistItemUpdateSchema = z.object({
+  id: z.string().cuid(),
+  checked: z.boolean(),
+  checkedById: z.string().cuid().optional(),
+});
+
+export const ChecklistBatchUpdateSchema = z.object({
+  items: z.array(ChecklistItemUpdateSchema),
+});
+
+// ── Metrics ──────────────────────────────────────────────────────────────────
+
+export const MetricSnapshotSchema = z.object({
+  retentionPct: z.number().min(0).max(100).optional(),
+  shares: z.number().int().min(0).optional(),
+  saves: z.number().int().min(0).optional(),
+  comments: z.number().int().min(0).optional(),
+  profileClicks: z.number().int().min(0).optional(),
+  directs: z.number().int().min(0).optional(),
+  newFollowers: z.number().int().min(0).optional(),
+  measuredAt: z.string().datetime().optional(),
+  enteredById: z.string().cuid().optional(),
+});
+
+// ── Derived Asset ─────────────────────────────────────────────────────────────
+
+export const DerivedAssetSchema = z.object({
+  type: z.nativeEnum(DerivedAssetType),
+  content: z.string().optional(),
+  externalUrl: z.string().url().optional(),
+  aiGenerated: z.boolean().optional(),
+});
+
+// ── Comment ───────────────────────────────────────────────────────────────────
+
+export const CreateCommentSchema = z.object({
+  body: z.string().min(1).max(2000),
+});
+
+// ── Board filters ─────────────────────────────────────────────────────────────
+
+export const BoardFiltersSchema = z.object({
+  assigneeId: z.string().cuid().optional(),
+  pillar: z.nativeEnum(Pillar).optional(),
+  awareness: z.nativeEnum(AwarenessLevel).optional(),
+  contentClass: z.nativeEnum(ContentClass).optional(),
+  search: z.string().max(200).optional(),
+});
+
+// ── App Settings ──────────────────────────────────────────────────────────────
+
+export const AppSettingSchema = z.object({
+  mixTargets: z.object({
+    dorConsciencia: z.number(),
+    solucaoMecanismo: z.number(),
+    provaBastidorProduto: z.number(),
+  }),
+  pillarGroupMap: z.record(z.string()),
+  weeklyTargets: z.object({
+    dor: z.number().int(),
+    autoridade: z.number().int(),
+    produto: z.number().int(),
+    prova: z.number().int(),
+    trend: z.number().int(),
+  }),
+  goldenRulePrompt: z.string(),
+});
+
+// ── Checklist Template ────────────────────────────────────────────────────────
+
+export const ChecklistTemplateItemSchema = z.object({
+  label: z.string().min(3).max(300),
+  order: z.number().int().min(0),
+});
+
+export const ChecklistTemplateSchema = z.object({
+  items: z.array(ChecklistTemplateItemSchema),
+});
+
+// ── AI Jobs ───────────────────────────────────────────────────────────────────
+
+export const AIProspectInputSchema = z.object({
+  signalIds: z.array(z.string().cuid()).min(1),
+});
+
+export const AIStructureInputSchema = z.object({
+  rawText: z.string().min(10).max(5000),
+  cardId: z.string().cuid().optional(),
+});
+
+export const AIValidateInputSchema = z.object({
+  cardId: z.string().cuid(),
+});
+
+export const AIAnglesInputSchema = z.object({
+  cardId: z.string().cuid(),
+});
+
+export const AICopyInputSchema = z.object({
+  cardId: z.string().cuid(),
+});
+
+export const AIRecycleInputSchema = z.object({
+  cardId: z.string().cuid(),
+});
+
+// ── Inferred types ────────────────────────────────────────────────────────────
+
+export type LoginInput = z.infer<typeof LoginSchema>;
+export type CreateUserInput = z.infer<typeof CreateUserSchema>;
+export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
+export type CreateCardInput = z.infer<typeof CreateCardSchema>;
+export type UpdateCardInput = z.infer<typeof UpdateCardSchema>;
+export type TransitionInput = z.infer<typeof TransitionSchema>;
+export type ValidationInput = z.infer<typeof ValidationSchema>;
+export type CreateAngleInput = z.infer<typeof CreateAngleSchema>;
+export type CreateHookInput = z.infer<typeof CreateHookSchema>;
+export type ScriptInput = z.infer<typeof ScriptSchema>;
+export type CreativeDirectionInput = z.infer<typeof CreativeDirectionSchema>;
+export type CopyContentInput = z.infer<typeof CopyContentSchema>;
+export type ScheduleInput = z.infer<typeof ScheduleSchema>;
+export type RetentionReviewInput = z.infer<typeof RetentionReviewSchema>;
+export type MetricSnapshotInput = z.infer<typeof MetricSnapshotSchema>;
+export type DerivedAssetInput = z.infer<typeof DerivedAssetSchema>;
+export type CreateCommentInput = z.infer<typeof CreateCommentSchema>;
+export type BoardFiltersInput = z.infer<typeof BoardFiltersSchema>;
+export type AppSettingInput = z.infer<typeof AppSettingSchema>;

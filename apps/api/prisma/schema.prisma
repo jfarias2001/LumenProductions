@@ -1,0 +1,422 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum Stage {
+  SINAIS_MERCADO
+  IDEIAS_BRUTAS
+  IDEIAS_VALIDADAS
+  ANGULO_DEFINIDO
+  HOOKS_EM_TESTE
+  ROTEIRO
+  DIRECAO_CRIATIVA
+  PRONTO_PARA_GRAVAR
+  GRAVADO
+  EM_EDICAO
+  REVISAO_RETENCAO
+  COPY_LEGENDA_CTA
+  AGENDADO
+  PUBLICADO
+  EM_DISTRIBUICAO
+  ANALISE
+  ESCALAR_RECICLAR
+  ARQUIVADO
+}
+
+enum Pillar {
+  DOR_DONO_AGENCIA
+  QUEBRA_CRENCA
+  OPORTUNIDADE_TICKET
+  PRODUTO_MECANISMO
+  PROVA_BASTIDORES
+  OBJECOES
+  AUTORIDADE
+}
+
+enum AwarenessLevel {
+  PROBLEMA
+  NOVA_PERSPECTIVA
+  IDENTIFICACAO
+  INTENCAO
+}
+
+enum ContentClass {
+  VIRAL
+  AUTORIDADE
+  VENDEDOR
+  FRACO
+}
+
+enum SignalSource {
+  WHATSAPP_LEAD
+  OBJECAO_CALL
+  COMENTARIO_INSTAGRAM
+  ANUNCIO_CONCORRENTE
+  PRINT_CONVERSA
+  RECLAMACAO_LEADS_RUINS
+}
+
+enum AngleType {
+  DOR
+  CULPA_TRANSFERIDA
+  OPORTUNIDADE
+  MEDO
+  AUTORIDADE
+}
+
+enum CreativeFormat {
+  PESSOA_FALANDO
+  PRINTS_PROCESSO
+  POV_DONO_AGENCIA
+  ANTES_DEPOIS
+  CHECKLIST
+  STORYTELLING
+  COMPARATIVO
+  TREND_ADAPTADA
+  SIMULACAO_CONVERSA
+  DEMONSTRACAO_PRODUTO
+}
+
+enum DerivedAssetType {
+  CARROSSEL
+  STORY
+  ANUNCIO
+  EMAIL
+  CORTE_SHORTS
+  POST_LINKEDIN
+  SCRIPT_SDR
+  HOOK_NOVO
+}
+
+enum Role {
+  ADMIN
+  GESTOR
+  ESTRATEGISTA
+  ROTEIRISTA
+  GRAVACAO
+  EDITOR
+  REVISOR_RETENCAO
+}
+
+enum HookStatus {
+  EM_TESTE
+  ESCOLHIDO
+  DESCARTADO
+}
+
+enum ValidationVerdict {
+  DESCARTAR
+  MELHORAR_ANGULO
+  SEGUIR_ROTEIRO
+}
+
+// ── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  active       Boolean  @default(true)
+  cards        Card[]   @relation("assignee")
+  comments     Comment[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Card {
+  id             String         @id @default(cuid())
+  stage          Stage          @default(SINAIS_MERCADO)
+  title          String
+  persona        String?
+  pain           String?
+  promise        String?
+  awareness      AwarenessLevel?
+  pillar         Pillar?
+  ctaText        String?
+  screenTexts    String[]       @default([])
+  primaryMetric  String?
+  contentClass   ContentClass?
+  signalSource   SignalSource?
+  signalContent  String?
+  signalLink     String?
+  rawFootageUrl  String?
+  editedVideoUrl String?
+  referenceUrls  String[]       @default([])
+  assigneeId     String?
+  assignee       User?          @relation("assignee", fields: [assigneeId], references: [id])
+  parentCardId   String?
+  parentCard     Card?          @relation("derived", fields: [parentCardId], references: [id])
+  derivedCards   Card[]         @relation("derived")
+  validation     Validation?
+  angles         Angle[]
+  hooks          Hook[]
+  script         Script?
+  creative       CreativeDirection?
+  copy           CopyContent?
+  schedule       Schedule?
+  retentionReview RetentionReview?
+  checklistItems CardChecklistItem[]
+  metricSnapshots CardMetricSnapshot[]
+  derivedAssets  DerivedAsset[]
+  stageHistory   CardStageHistory[]
+  comments       Comment[]
+  activityLogs   ActivityLog[]
+  aiJobs         AIJob[]
+  archivedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([stage])
+  @@index([assigneeId])
+  @@index([pillar])
+  @@index([archivedAt])
+}
+
+model Validation {
+  id                    String            @id @default(cuid())
+  cardId                String            @unique
+  card                  Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  dorQuente             Int
+  clareza               Int
+  contraste             Int
+  especificidadeAgencia Int
+  potencialComentarios  Int
+  potencialComercial    Int
+  total                 Int
+  verdict               ValidationVerdict
+  aiSuggested           Boolean           @default(false)
+  aiJustifications      Json?
+  reviewedById          String?
+  reviewedAt            DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+}
+
+model Angle {
+  id          String    @id @default(cuid())
+  cardId      String
+  card        Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type        AngleType
+  text        String
+  selected    Boolean   @default(false)
+  aiGenerated Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+}
+
+model Hook {
+  id          String     @id @default(cuid())
+  cardId      String
+  card        Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  text        String
+  status      HookStatus @default(EM_TESTE)
+  aiGenerated Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+}
+
+model Script {
+  id            String   @id @default(cuid())
+  cardId        String   @unique
+  card          Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  dor           String
+  quebra        String
+  mecanismo     String
+  beneficio     String
+  cta           String
+  durationSec   Int
+  strongPhrases String[] @default([])
+  approved      Boolean  @default(false)
+  aiGenerated   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CreativeDirection {
+  id            String         @id @default(cuid())
+  cardId        String         @unique
+  card          Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  format        CreativeFormat
+  visualNotes   String?
+  referenceUrls String[]       @default([])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model CopyContent {
+  id            String   @id @default(cuid())
+  cardId        String   @unique
+  card          Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  caption       String
+  ctaVariations String[] @default([])
+  aiGenerated   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Schedule {
+  id            String   @id @default(cuid())
+  cardId        String   @unique
+  card          Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  objective     String
+  audience      String
+  cta           String
+  primaryMetric String
+  hypothesis    String
+  scheduledFor  DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model RetentionReview {
+  id         String   @id @default(cuid())
+  cardId     String   @unique
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  answers    Json
+  badCount   Int
+  passed     Boolean
+  reviewerId String?
+  notes      String?
+  createdAt  DateTime @default(now())
+}
+
+model ChecklistTemplate {
+  id    String                 @id @default(cuid())
+  stage Stage                  @unique
+  items ChecklistTemplateItem[]
+}
+
+model ChecklistTemplateItem {
+  id         String            @id @default(cuid())
+  templateId String
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  label      String
+  order      Int
+}
+
+model CardChecklistItem {
+  id           String    @id @default(cuid())
+  cardId       String
+  card         Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  stage        Stage
+  label        String
+  checked      Boolean   @default(false)
+  checkedById  String?
+  checkedAt    DateTime?
+
+  @@index([cardId, stage])
+}
+
+model CardMetricSnapshot {
+  id             String   @id @default(cuid())
+  cardId         String
+  card           Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  retentionPct   Float?
+  shares         Int?
+  saves          Int?
+  comments       Int?
+  profileClicks  Int?
+  directs        Int?
+  newFollowers   Int?
+  measuredAt     DateTime @default(now())
+  enteredById    String?
+
+  @@index([cardId])
+}
+
+model DerivedAsset {
+  id          String           @id @default(cuid())
+  cardId      String
+  card        Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type        DerivedAssetType
+  content     String?
+  externalUrl String?
+  aiGenerated Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+}
+
+model CardStageHistory {
+  id        String    @id @default(cuid())
+  cardId    String
+  card      Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  stage     Stage
+  enteredAt DateTime  @default(now())
+  exitedAt  DateTime?
+  byUserId  String?
+
+  @@index([cardId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([cardId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  cardId    String?
+  card      Card?    @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  actorId   String?
+  action    String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([cardId])
+  @@index([actorId])
+}
+
+model AIJob {
+  id           String   @id @default(cuid())
+  type         String
+  cardId       String?
+  card         Card?    @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  provider     String   @default("openai")
+  model        String
+  status       String   @default("queued")
+  inputTokens  Int?
+  outputTokens Int?
+  costEstimate Float?
+  result       Json?
+  error        String?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([cardId])
+  @@index([status])
+}
+
+model AppSetting {
+  id               String @id @default("singleton")
+  mixTargets       Json
+  pillarGroupMap   Json
+  weeklyTargets    Json
+  goldenRulePrompt String
+  updatedAt        DateTime @updatedAt
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
