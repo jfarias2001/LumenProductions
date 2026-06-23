@@ -4,7 +4,10 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "module": "NodeNext",
-    "moduleResolution": "NodeNext"
+    "moduleResolution": "NodeNext",
+    // Os tipos de input gerados pelo Prisma usam `prop?: T` (sem `undefined`),
+    // incompatíveis com exactOptionalPropertyTypes do tsconfig.base. Relaxar aqui.
+    "exactOptionalPropertyTypes": false
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

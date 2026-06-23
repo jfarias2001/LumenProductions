@@ -62,10 +62,18 @@ export function useTransitionCard() {
   });
 }
 
+export type CardDetailData = Record<string, unknown> & {
+  stage: Stage;
+  title: string;
+  pillar?: string | null;
+  assignee?: { id: string; name: string; role: string } | null;
+  updatedAt: string;
+};
+
 export function useCard(id: string | null) {
   return useQuery({
     queryKey: ['card', id],
-    queryFn: () => api.get(`/cards/${id}`),
+    queryFn: () => api.get<CardDetailData>(`/cards/${id}`),
     enabled: !!id,
   });
 }

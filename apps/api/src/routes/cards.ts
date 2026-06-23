@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { emitBoard } from '../lib/emitter.js';
 import { requirePermission, requireAuth } from '../plugins/auth.js';
 import { pipelineService } from '../services/pipeline.service.js';
@@ -113,7 +114,7 @@ export default async function cardRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = UpdateCardSchema.parse(request.body);
     const card = await prisma.card.update({ where: { id }, data: body });
-    await prisma.activityLog.create({ data: { cardId: id, actorId: request.actor.sub, action: 'card.updated', payload: body as Record<string, unknown> } });
+    await prisma.activityLog.create({ data: { cardId: id, actorId: request.actor.sub, action: 'card.updated', payload: body as unknown as Prisma.InputJsonValue } });
     emitBoard('card.updated', card);
     return reply.send(card);
   });

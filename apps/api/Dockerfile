@@ -10,8 +10,9 @@ RUN pnpm install --frozen-lockfile
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
 RUN pnpm --filter @content-engine/shared build
-RUN pnpm --filter api build
+# prisma generate ANTES do build: o tsc precisa dos tipos do Prisma Client.
 RUN pnpm --filter api exec prisma generate
+RUN pnpm --filter api build
 
 FROM base AS runner
 WORKDIR /app
@@ -22,6 +23,8 @@ COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
+# Com pnpm, o Prisma Client é gerado no store; os symlinks de apps/api/node_modules
+# apontam para /app/node_modules (copiado acima). Não existe apps/api/node_modules/.prisma.
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 EXPOSE 3001
 CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && node dist/server.js"]

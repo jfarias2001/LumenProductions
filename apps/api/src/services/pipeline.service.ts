@@ -76,7 +76,8 @@ export class PipelineService {
     const fromIdx = STAGE_ORDER.indexOf(from);
     const toIdx = STAGE_ORDER.indexOf(to);
 
-    if (from === Stage.ARQUIVADO && to !== Stage.ARQUIVADO) {
+    // `to` já é garantidamente ≠ ARQUIVADO aqui (early return na linha acima).
+    if (from === Stage.ARQUIVADO) {
       return { allowed: false, code: 'ARCHIVED_CARD', message: 'Card arquivado não pode ser reativado.' };
     }
 

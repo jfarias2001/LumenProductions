@@ -209,7 +209,7 @@ function AngulosTab({ card }: { card: Record<string, unknown> }) {
         {angles.length ? angles.map((a) => (
           <div key={String(a.id)} className={`text-sm p-2 rounded mb-1 ${a.selected ? 'bg-brand-50 border border-brand-200' : 'bg-gray-50'}`}>
             <span className="text-xs text-gray-400 mr-1">{String(a.type)}</span>{String(a.text)}
-            {a.selected && <span className="ml-2 text-xs text-brand-500">✓ Selecionado</span>}
+            {Boolean(a.selected) && <span className="ml-2 text-xs text-brand-500">✓ Selecionado</span>}
           </div>
         )) : <p className="text-sm text-gray-400">Nenhum ângulo.</p>}
       </div>
