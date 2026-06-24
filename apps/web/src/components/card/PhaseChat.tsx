@@ -9,6 +9,8 @@ import { PILLAR_LABELS, AWARENESS_LABELS } from '../../lib/labels.js';
 interface Props {
   cardId: string;
   currentStage: Stage;
+  /** Embutido no fluxo focado: trava a fase na atual e esconde o botão próprio de avançar (a AdvanceBar cuida disso). */
+  embedded?: boolean;
 }
 
 interface ConsolidateResult {
@@ -60,7 +62,7 @@ function summaryLines(result: ConsolidateResult | undefined): { label: string; v
   return lines.filter((l): l is { label: string; value: string } => Boolean(l.value));
 }
 
-export default function PhaseChat({ cardId, currentStage }: Props) {
+export default function PhaseChat({ cardId, currentStage, embedded = false }: Props) {
   const qc = useQueryClient();
   const transition = useTransitionCard();
   const initial = isConversationalStage(currentStage) ? currentStage : CONVERSATIONAL_STAGES[0]!;
@@ -103,15 +105,19 @@ export default function PhaseChat({ cardId, currentStage }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col ${embedded ? 'h-[440px]' : 'h-full'}`}>
       {/* Seletor de fase */}
       <div className="flex items-center gap-2 pb-3 shrink-0">
         <label className="text-xs text-slate-500">Fase:</label>
-        <select className="input-base !w-auto !py-1.5" value={stage} onChange={(e) => setStage(e.target.value as Stage)}>
-          {CONVERSATIONAL_STAGES.map((s) => (
-            <option key={s} value={s}>{STAGE_LABELS[s]}</option>
-          ))}
-        </select>
+        {embedded ? (
+          <span className="text-xs font-medium text-ai-300">{STAGE_LABELS[stage]}</span>
+        ) : (
+          <select className="input-base !w-auto !py-1.5" value={stage} onChange={(e) => setStage(e.target.value as Stage)}>
+            {CONVERSATIONAL_STAGES.map((s) => (
+              <option key={s} value={s}>{STAGE_LABELS[s]}</option>
+            ))}
+          </select>
+        )}
         <button
           onClick={() => consolidate.mutate()}
           disabled={consolidate.isPending || !messages.length}
@@ -138,7 +144,7 @@ export default function PhaseChat({ cardId, currentStage }: Props) {
               ))}
             </dl>
           )}
-          {canAdvance && nextStage && (
+          {!embedded && canAdvance && nextStage && (
             <div className="pt-1">
               <button
                 onClick={handleAdvance}

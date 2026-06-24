@@ -175,4 +175,28 @@ O gate `PipelineService.canTransition` exige `signalSource` e `signalContent` pa
 
 ---
 
+## [2026-06-24] UX: detalhe do card vira fluxo focado por etapa (não mais "tudo de uma vez")
+
+Correção/polimento (sem novo PRD) — reorganiza o `CardDetail`.
+
+### Problema
+O `CardDetail` renderizava **as 14 abas ao mesmo tempo**, independentemente do estágio do card. Resultado: já no primeiro estágio (Sinais do Mercado) era possível preencher roteiro, copy, métricas etc. — o oposto de um pipeline que evolui etapa a etapa. Relato do usuário: *"o card na primeira etapa eu já consigo preencher tudo… quero cada estágio uma coisa e vai evoluindo até o final"*.
+
+### Solução — fluxo focado por etapa
+- **Stepper das 18 fases** no topo do drawer: concluídas (✓, clicáveis para revisão), atual (destaque) e **futuras bloqueadas (🔒, não clicáveis)** — não dá mais para pular para frente e preencher tudo.
+- O corpo mostra **apenas o painel da etapa em foco** (default = etapa atual do card), com um título + descrição do que fazer agora (`STAGE_META.job`) e o mapeamento estágio→seções:
+  - Sinais → captura do sinal; Ideias Brutas → copiloto + fundamentos (título/persona/dor/pilar/consciência); Validadas → copiloto + validação; Ângulo/Hooks → copiloto + ângulos&hooks; Roteiro/Direção/Copy/Reciclar → copiloto + a seção respectiva; Pré-gravar/Distribuição → checklist; Gravado/Edição → **novo editor de link de mídia** (`rawFootageUrl`/`editedVideoUrl`) + checklist; Retenção → revisão; Agendado/Publicado → agendamento; Análise → métricas + **novo seletor de classificação** (`contentClass`).
+- **Barra de avanço única** no rodapé (`AdvanceBar`), só quando a etapa em foco é a atual: mostra o requisito do gate (`STAGE_META.gate`) + botão "Avançar → próxima fase" usando `useTransitionCard`; erros de gate aparecem inline.
+- **Alternância Fluxo / 📦 Pacote** no header (o `FinalPackageView` saiu de aba fixa para essa visão).
+- `PhaseChat` ganhou prop `embedded`: quando embutido no fluxo, trava a fase na atual (sem seletor livre) e esconde o botão próprio de avançar (a `AdvanceBar` é o único ponto de avanço); mantém o Consolidar.
+- `TemplateTab` agora tem `focus: 'signal' | 'idea'`; comentários viraram seção colapsável transversal.
+
+### Estado
+- `tsc --noEmit` do web OK. Sem mudança de backend/schema — deploy é só rebuild do `web`.
+
+### Próximos passos sugeridos
+- Editores inline ainda faltantes para fechar gates pela UI: confirmação humana da validação (`reviewedById`), formulário de agendamento (`schedule`), entrada de métricas (`metricSnapshots`) e revisão de retenção. Hoje algumas dessas etapas são leitura + IA.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*

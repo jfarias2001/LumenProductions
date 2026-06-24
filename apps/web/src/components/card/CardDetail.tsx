@@ -1,47 +1,49 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api.js';
-import { STAGE_LABELS, SignalSource } from '@content-engine/shared';
+import { STAGE_LABELS, STAGE_ORDER, Stage, SignalSource, AwarenessLevel, Pillar, ContentClass } from '@content-engine/shared';
 import { formatDate } from '../../lib/utils.js';
-import { useCard, useArchiveCard } from '../../hooks/useBoard.js';
+import { useCard, useArchiveCard, useTransitionCard } from '../../hooks/useBoard.js';
 import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle } from '../../hooks/useAI.js';
-import { PILLAR_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS } from '../../lib/labels.js';
+import { PILLAR_LABELS, AWARENESS_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS, CLASS_BADGE } from '../../lib/labels.js';
 import AICopilotButton from './AICopilotButton.js';
 import PhaseChat from './PhaseChat.js';
 import FinalPackageView from './FinalPackageView.js';
-import type { Stage } from '@content-engine/shared';
 
 interface Props {
   cardId: string;
   onClose: () => void;
 }
 
-type Tab =
-  | 'copiloto' | 'pacote'
-  | 'template' | 'validacao' | 'angulos' | 'roteiro' | 'direcao'
-  | 'checklists' | 'retencao' | 'copy' | 'agendamento' | 'metricas'
-  | 'reciclagem' | 'atividade';
+// Fases visíveis no fluxo (ARQUIVADO é estado terminal, fora do stepper).
+const FLOW: Stage[] = STAGE_ORDER.filter((s) => s !== Stage.ARQUIVADO);
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'copiloto', label: '✦ Copiloto IA' },
-  { id: 'pacote', label: '📦 Pacote' },
-  { id: 'template', label: 'Template' },
-  { id: 'validacao', label: 'Validação' },
-  { id: 'angulos', label: 'Ângulos & Hooks' },
-  { id: 'roteiro', label: 'Roteiro' },
-  { id: 'copy', label: 'Copy' },
-  { id: 'direcao', label: 'Direção' },
-  { id: 'checklists', label: 'Checklists' },
-  { id: 'retencao', label: 'Retenção' },
-  { id: 'agendamento', label: 'Agendamento' },
-  { id: 'metricas', label: 'Métricas' },
-  { id: 'reciclagem', label: 'Reciclagem' },
-  { id: 'atividade', label: 'Atividade' },
-];
+/** Para cada etapa: o trabalho a fazer agora e o que o gate exige para avançar. */
+const STAGE_META: Record<Stage, { job: string; gate: string }> = {
+  [Stage.SINAIS_MERCADO]: { job: 'Capture o sinal de mercado que originou a ideia.', gate: 'Preencha a fonte e o conteúdo do sinal.' },
+  [Stage.IDEIAS_BRUTAS]: { job: 'Lapide a ideia com o copiloto: dor central, persona e promessa.', gate: 'Defina um título claro (mín. 3 caracteres).' },
+  [Stage.IDEIAS_VALIDADAS]: { job: 'Valide o potencial da ideia (6 critérios, 0–3).', gate: 'Veredito SEGUIR_ROTEIRO (≥13) confirmado por um humano.' },
+  [Stage.ANGULO_DEFINIDO]: { job: 'Explore ângulos narrativos e escolha o mais forte.', gate: 'Selecione ao menos 1 ângulo.' },
+  [Stage.HOOKS_EM_TESTE]: { job: 'Gere e refine hooks de abertura (primeiros 2 segundos).', gate: 'Mínimo 5 hooks, com 1 marcado como ESCOLHIDO.' },
+  [Stage.ROTEIRO]: { job: 'Escreva o roteiro: dor → quebra → mecanismo → benefício → CTA.', gate: 'Roteiro com as 5 seções e duração entre 30–45s.' },
+  [Stage.DIRECAO_CRIATIVA]: { job: 'Defina a direção criativa (formato, cortes/slides, paleta).', gate: 'Formato de direção criativa definido.' },
+  [Stage.PRONTO_PARA_GRAVAR]: { job: 'Prepare a pré-produção.', gate: 'Checklist de pré-produção completo.' },
+  [Stage.GRAVADO]: { job: 'Grave e registre o link da captação bruta.', gate: 'Link da gravação bruta preenchido.' },
+  [Stage.EM_EDICAO]: { job: 'Edite e registre o link do vídeo editado.', gate: 'Checklist de retenção + link do vídeo editado.' },
+  [Stage.REVISAO_RETENCAO]: { job: 'Revise a retenção da peça editada.', gate: 'Revisão de retenção aprovada (<3 respostas ruins).' },
+  [Stage.COPY_LEGENDA_CTA]: { job: 'Escreva a legenda e as variações de CTA.', gate: 'Legenda + ao menos 1 variação de CTA.' },
+  [Stage.AGENDADO]: { job: 'Agende a publicação com objetivo, público e hipótese.', gate: 'Agendamento completo (todos os campos).' },
+  [Stage.PUBLICADO]: { job: 'Publique manualmente na plataforma.', gate: 'Publicação é manual — confirme após postar.' },
+  [Stage.EM_DISTRIBUICAO]: { job: 'Distribua nos demais canais.', gate: 'Checklist de distribuição completo.' },
+  [Stage.ANALISE]: { job: 'Registre métricas e classifique a peça.', gate: '1 snapshot de métricas + classificação da peça.' },
+  [Stage.ESCALAR_RECICLAR]: { job: 'Transforme a peça vencedora em ativos derivados.', gate: '—' },
+  [Stage.ARQUIVADO]: { job: 'Card arquivado.', gate: '—' },
+};
 
 export default function CardDetail({ cardId, onClose }: Props) {
   const { data: card, isLoading } = useCard(cardId);
-  const [activeTab, setActiveTab] = useState<Tab>('copiloto');
+  const [view, setView] = useState<'flow' | 'package'>('flow');
+  const [focusStage, setFocusStage] = useState<Stage | null>(null);
   const qc = useQueryClient();
   const archive = useArchiveCard();
 
@@ -61,7 +63,11 @@ export default function CardDetail({ cardId, onClose }: Props) {
     );
   }
 
+  const cardStage = card.stage as Stage;
   const pillar = card.pillar ? String(card.pillar) : null;
+  // Etapa em foco: a atual por padrão; o usuário pode revisitar etapas já concluídas.
+  const stage = focusStage ?? cardStage;
+  const meta = STAGE_META[stage];
 
   return (
     <div className="fixed inset-0 z-40 flex">
@@ -71,7 +77,7 @@ export default function CardDetail({ cardId, onClose }: Props) {
         <div className="px-5 py-4 border-b border-surface-700 flex items-start justify-between gap-4 shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="badge bg-brand-600/20 text-brand-300">{STAGE_LABELS[card.stage as keyof typeof STAGE_LABELS]}</span>
+              <span className="badge bg-brand-600/20 text-brand-300">{STAGE_LABELS[cardStage]}</span>
               {card.contentType ? <span className="badge bg-ai-600/15 text-ai-400 border border-ai-500/30">{CONTENT_TYPE_LABELS[String(card.contentType)] ?? String(card.contentType)}</span> : null}
               {pillar && <span className={`badge ${PILLAR_BADGE[pillar] ?? 'bg-surface-700 text-slate-400'}`}>{PILLAR_LABELS[pillar] ?? pillar}</span>}
             </div>
@@ -89,48 +95,165 @@ export default function CardDetail({ cardId, onClose }: Props) {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-surface-700 px-3 overflow-x-auto shrink-0">
-          <div className="flex gap-0 whitespace-nowrap">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`text-xs font-medium px-3 py-2.5 border-b-2 transition-colors ${
-                  activeTab === tab.id ? 'border-brand-500 text-brand-300' : 'border-transparent text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* Alternância Fluxo / Pacote */}
+        <div className="px-5 pt-3 flex gap-1.5 shrink-0">
+          <button onClick={() => setView('flow')} className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${view === 'flow' ? 'bg-brand-600/20 text-brand-300' : 'text-slate-500 hover:text-slate-300'}`}>Fluxo da pipeline</button>
+          <button onClick={() => setView('package')} className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${view === 'package' ? 'bg-brand-600/20 text-brand-300' : 'text-slate-500 hover:text-slate-300'}`}>📦 Pacote final</button>
         </div>
 
-        {/* Content */}
-        <div className={`flex-1 min-h-0 p-5 ${activeTab === 'copiloto' ? 'flex flex-col' : 'overflow-y-auto'}`}>
-          {activeTab === 'copiloto' && <PhaseChat cardId={cardId} currentStage={card.stage as Stage} />}
-          {activeTab === 'pacote' && <FinalPackageView cardId={cardId} />}
-          {activeTab === 'template' && <TemplateTab cardId={cardId} card={card} onUpdate={(d) => updateCard.mutate(d)} />}
-          {activeTab === 'validacao' && <ValidacaoTab cardId={cardId} card={card} />}
-          {activeTab === 'angulos' && <AngulosTab cardId={cardId} card={card} />}
-          {activeTab === 'roteiro' && <RoteiroTab cardId={cardId} card={card} />}
-          {activeTab === 'copy' && <CopyTab cardId={cardId} card={card} />}
-          {activeTab === 'direcao' && <DirecaoTab card={card} />}
-          {activeTab === 'checklists' && <ChecklistsTab cardId={cardId} />}
-          {activeTab === 'retencao' && <RetencaoTab card={card} />}
-          {activeTab === 'agendamento' && <AgendamentoTab card={card} />}
-          {activeTab === 'metricas' && <MetricasTab card={card} />}
-          {activeTab === 'reciclagem' && <ReciclagemTab cardId={cardId} card={card} />}
-          {activeTab === 'atividade' && <AtividadeTab card={card} />}
-        </div>
+        {view === 'package' ? (
+          <div className="flex-1 min-h-0 overflow-y-auto p-5"><FinalPackageView cardId={cardId} /></div>
+        ) : (
+          <>
+            {/* Stepper das fases */}
+            <StageStepper currentStage={cardStage} focusStage={stage} onPick={setFocusStage} />
+
+            {/* Painel da etapa em foco */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+              <div className="mb-4">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-white">{STAGE_LABELS[stage]}</h3>
+                  {stage === cardStage ? <span className="badge bg-emerald-500/15 text-emerald-300">etapa atual</span> : FLOW.indexOf(stage) < FLOW.indexOf(cardStage) ? <span className="badge bg-surface-700 text-slate-400">concluída</span> : null}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">{meta.job}</p>
+              </div>
+
+              <StagePanel stage={stage} cardId={cardId} card={card} onUpdate={(d) => updateCard.mutate(d)} />
+
+              <CommentsSection card={card} />
+            </div>
+
+            {/* Barra de avanço — só quando a etapa em foco é a atual do card */}
+            {stage === cardStage && <AdvanceBar cardId={cardId} stage={cardStage} />}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Stepper ──────────────────────────────────────────────────────────────────
+function StageStepper({ currentStage, focusStage, onPick }: { currentStage: Stage; focusStage: Stage; onPick: (s: Stage | null) => void }) {
+  const currentIdx = FLOW.indexOf(currentStage);
+  return (
+    <div className="border-b border-surface-700 px-5 py-3 shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-0 min-w-max">
+        {FLOW.map((s, i) => {
+          const done = i < currentIdx;
+          const isCurrent = i === currentIdx;
+          const isFuture = i > currentIdx;
+          const isFocus = s === focusStage;
+          const clickable = !isFuture; // não dá para pular para o futuro
+          return (
+            <div key={s} className="flex items-center">
+              <button
+                disabled={!clickable}
+                onClick={() => onPick(isCurrent ? null : s)}
+                title={STAGE_LABELS[s] + (isFuture ? ' (bloqueada)' : '')}
+                className={`group flex flex-col items-center gap-1 px-1.5 ${clickable ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+              >
+                <span
+                  className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold border-2 transition-colors ${
+                    isFocus
+                      ? 'bg-brand-500 border-brand-400 text-white ring-2 ring-brand-500/40'
+                      : done
+                        ? 'bg-emerald-600/30 border-emerald-500/50 text-emerald-300'
+                        : isCurrent
+                          ? 'bg-brand-600/20 border-brand-500 text-brand-300'
+                          : 'bg-surface-850 border-surface-700 text-slate-600'
+                  }`}
+                >
+                  {done ? '✓' : isFuture ? '🔒' : i + 1}
+                </span>
+                <span className={`text-[9px] leading-tight w-14 text-center truncate ${isFocus ? 'text-brand-300' : done ? 'text-slate-400' : isCurrent ? 'text-brand-300' : 'text-slate-600'}`}>
+                  {STAGE_LABELS[s]}
+                </span>
+              </button>
+              {i < FLOW.length - 1 && <span className={`h-0.5 w-3 -mt-4 ${i < currentIdx ? 'bg-emerald-500/40' : 'bg-surface-700'}`} />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Barra de avanço ──────────────────────────────────────────────────────────
+function AdvanceBar({ cardId, stage }: { cardId: string; stage: Stage }) {
+  const qc = useQueryClient();
+  const transition = useTransitionCard();
+  const idx = STAGE_ORDER.indexOf(stage);
+  const nextStage = idx >= 0 && idx < STAGE_ORDER.length - 1 ? STAGE_ORDER[idx + 1]! : null;
+  if (!nextStage || nextStage === Stage.ARQUIVADO) return null;
+
+  function advance() {
+    if (!nextStage) return;
+    transition.mutate(
+      { cardId, to: nextStage },
+      { onSuccess: () => { void qc.invalidateQueries({ queryKey: ['card', cardId] }); } },
+    );
+  }
+
+  return (
+    <div className="border-t border-surface-700 px-5 py-3 shrink-0 bg-surface-900">
+      <p className="text-[11px] text-slate-500 mb-2"><span className="text-slate-400 font-medium">Para avançar:</span> {STAGE_META[stage].gate}</p>
+      <button onClick={advance} disabled={transition.isPending} className="btn-primary text-sm w-full">
+        {transition.isPending ? 'Avançando…' : `Avançar → ${STAGE_LABELS[nextStage]}`}
+      </button>
+      {transition.isError && (
+        <p className="text-[11px] text-amber-300/90 mt-2">{(transition.error as Error)?.message ?? 'Transição bloqueada pelo gate de qualidade.'}</p>
+      )}
+      {transition.isSuccess && <p className="text-[11px] text-emerald-300/90 mt-2">Card movido para {STAGE_LABELS[nextStage]} ✓</p>}
+    </div>
+  );
+}
+
+// ── Roteador de painel por etapa ──────────────────────────────────────────────
 type Rec = Record<string, unknown>;
 
+function StagePanel({ stage, cardId, card, onUpdate }: { stage: Stage; cardId: string; card: Rec; onUpdate: (d: Rec) => void }) {
+  const copiloto = <PhaseChat cardId={cardId} currentStage={stage} embedded />;
+  switch (stage) {
+    case Stage.SINAIS_MERCADO:
+      return <TemplateTab cardId={cardId} card={card} onUpdate={onUpdate} focus="signal" />;
+    case Stage.IDEIAS_BRUTAS:
+      return <div className="space-y-5">{copiloto}<TemplateTab cardId={cardId} card={card} onUpdate={onUpdate} focus="idea" /></div>;
+    case Stage.IDEIAS_VALIDADAS:
+      return <div className="space-y-5">{copiloto}<ValidacaoTab cardId={cardId} card={card} /></div>;
+    case Stage.ANGULO_DEFINIDO:
+    case Stage.HOOKS_EM_TESTE:
+      return <div className="space-y-5">{copiloto}<AngulosTab cardId={cardId} card={card} /></div>;
+    case Stage.ROTEIRO:
+      return <div className="space-y-5">{copiloto}<RoteiroTab cardId={cardId} card={card} /></div>;
+    case Stage.DIRECAO_CRIATIVA:
+      return <div className="space-y-5">{copiloto}<DirecaoTab card={card} /></div>;
+    case Stage.PRONTO_PARA_GRAVAR:
+      return <ChecklistsTab cardId={cardId} />;
+    case Stage.GRAVADO:
+      return <div className="space-y-5"><MediaTab card={card} onUpdate={onUpdate} field="rawFootageUrl" label="Link da gravação bruta" /><ChecklistsTab cardId={cardId} /></div>;
+    case Stage.EM_EDICAO:
+      return <div className="space-y-5"><MediaTab card={card} onUpdate={onUpdate} field="editedVideoUrl" label="Link do vídeo editado" /><ChecklistsTab cardId={cardId} /></div>;
+    case Stage.REVISAO_RETENCAO:
+      return <RetencaoTab card={card} />;
+    case Stage.COPY_LEGENDA_CTA:
+      return <div className="space-y-5">{copiloto}<CopyTab cardId={cardId} card={card} /></div>;
+    case Stage.AGENDADO:
+    case Stage.PUBLICADO:
+      return <AgendamentoTab card={card} />;
+    case Stage.EM_DISTRIBUICAO:
+      return <ChecklistsTab cardId={cardId} />;
+    case Stage.ANALISE:
+      return <div className="space-y-5"><MetricasTab card={card} /><ContentClassField card={card} onUpdate={onUpdate} /></div>;
+    case Stage.ESCALAR_RECICLAR:
+      return <div className="space-y-5">{copiloto}<ReciclagemTab cardId={cardId} card={card} /></div>;
+    case Stage.ARQUIVADO:
+      return <Empty>Card arquivado.</Empty>;
+    default:
+      return null;
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -144,64 +267,143 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-slate-500">{children}</p>;
 }
 
-// ── Template ─────────────────────────────────────────────────────────────────
-function TemplateTab({ cardId, card, onUpdate }: { cardId: string; card: Rec; onUpdate: (d: Rec) => void }) {
+// ── Template (fundamentos) — modo sinal ou ideia ──────────────────────────────
+function TemplateTab({ cardId, card, onUpdate, focus }: { cardId: string; card: Rec; onUpdate: (d: Rec) => void; focus: 'signal' | 'idea' }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(String(card.title ?? ''));
   const [persona, setPersona] = useState(String(card.persona ?? ''));
   const [pain, setPain] = useState(String(card.pain ?? ''));
+  const [pillar, setPillar] = useState(String(card.pillar ?? ''));
+  const [awareness, setAwareness] = useState(String(card.awareness ?? ''));
   const [signalSource, setSignalSource] = useState(String(card.signalSource ?? ''));
   const [signalContent, setSignalContent] = useState(String(card.signalContent ?? ''));
   const [rawText, setRawText] = useState('');
   const structure = useAIStructure(cardId);
 
+  function startEdit() {
+    setTitle(String(card.title ?? '')); setPersona(String(card.persona ?? '')); setPain(String(card.pain ?? ''));
+    setPillar(String(card.pillar ?? '')); setAwareness(String(card.awareness ?? ''));
+    setSignalSource(String(card.signalSource ?? '')); setSignalContent(String(card.signalContent ?? ''));
+    setEditing(true);
+  }
+
+  function save() {
+    const data: Rec = focus === 'signal'
+      ? { ...(signalSource ? { signalSource } : {}), signalContent }
+      : { title, persona, pain, ...(pillar ? { pillar } : {}), ...(awareness ? { awareness } : {}) };
+    onUpdate(data);
+    setEditing(false);
+  }
+
   return (
     <div className="space-y-4">
-      {/* IA: estruturar input solto */}
-      <div className="surface-card p-3 space-y-2 bg-surface-850">
-        <p className="text-xs text-slate-400">Cole uma transcrição/nota solta e deixe a IA preencher o template:</p>
-        <textarea className="input-base h-20 resize-none" value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="Ex.: ontem um cliente reclamou que recebe muito lead mas não fecha…" />
-        <button
-          onClick={() => structure.mutate(rawText)}
-          disabled={structure.isPending || rawText.trim().length < 10}
-          className="btn-ai"
-        >
-          {structure.isPending ? <><span className="h-3 w-3 rounded-full border-2 border-ai-400/40 border-t-ai-400 animate-spin" /> Estruturando…</> : '✦ Estruturar com IA'}
-        </button>
-        {structure.isError && <p className="text-[11px] text-amber-300/80">IA indisponível — preencha manualmente.</p>}
-      </div>
+      {focus === 'idea' && (
+        <div className="surface-card p-3 space-y-2 bg-surface-850">
+          <p className="text-xs text-slate-400">Cole uma transcrição/nota solta e deixe a IA preencher o template:</p>
+          <textarea className="input-base h-20 resize-none" value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="Ex.: ontem um cliente reclamou que recebe muito lead mas não fecha…" />
+          <button onClick={() => structure.mutate(rawText)} disabled={structure.isPending || rawText.trim().length < 10} className="btn-ai">
+            {structure.isPending ? <><span className="h-3 w-3 rounded-full border-2 border-ai-400/40 border-t-ai-400 animate-spin" /> Estruturando…</> : '✦ Estruturar com IA'}
+          </button>
+          {structure.isError && <p className="text-[11px] text-amber-300/80">IA indisponível — preencha manualmente.</p>}
+        </div>
+      )}
 
-      <Field label="Título">
-        {editing ? <input className="input-base" value={title} onChange={(e) => setTitle(e.target.value)} /> : <p className="text-sm text-slate-200">{String(card.title)}</p>}
-      </Field>
-      <Field label="Persona">
-        {editing ? <input className="input-base" value={persona} onChange={(e) => setPersona(e.target.value)} /> : <p className="text-sm text-slate-400">{String(card.persona ?? '—')}</p>}
-      </Field>
-      <Field label="Dor">
-        {editing ? <textarea className="input-base h-20 resize-none" value={pain} onChange={(e) => setPain(e.target.value)} /> : <p className="text-sm text-slate-400 whitespace-pre-wrap">{String(card.pain ?? '—')}</p>}
-      </Field>
-      <Field label="Fonte do sinal">
-        {editing ? (
-          <select className="input-base" value={signalSource} onChange={(e) => setSignalSource(e.target.value)}>
-            <option value="">—</option>
-            {Object.values(SignalSource).map((s) => <option key={s} value={s}>{SIGNAL_LABELS[s] ?? s}</option>)}
-          </select>
-        ) : <p className="text-sm text-slate-400">{card.signalSource ? (SIGNAL_LABELS[String(card.signalSource)] ?? String(card.signalSource)) : '—'}</p>}
-      </Field>
-      <Field label="Conteúdo do sinal">
-        {editing ? <textarea className="input-base h-24 resize-none" value={signalContent} onChange={(e) => setSignalContent(e.target.value)} placeholder="Cole aqui o print/transcrição/comentário…" /> : <p className="text-sm text-slate-400 whitespace-pre-wrap">{String(card.signalContent ?? '—')}</p>}
-      </Field>
+      {focus === 'signal' ? (
+        <>
+          <Field label="Fonte do sinal">
+            {editing ? (
+              <select className="input-base" value={signalSource} onChange={(e) => setSignalSource(e.target.value)}>
+                <option value="">—</option>
+                {Object.values(SignalSource).map((s) => <option key={s} value={s}>{SIGNAL_LABELS[s] ?? s}</option>)}
+              </select>
+            ) : <p className="text-sm text-slate-400">{card.signalSource ? (SIGNAL_LABELS[String(card.signalSource)] ?? String(card.signalSource)) : '—'}</p>}
+          </Field>
+          <Field label="Conteúdo do sinal">
+            {editing ? <textarea className="input-base h-28 resize-none" value={signalContent} onChange={(e) => setSignalContent(e.target.value)} placeholder="Cole aqui o print/transcrição/comentário…" /> : <p className="text-sm text-slate-400 whitespace-pre-wrap">{String(card.signalContent ?? '—')}</p>}
+          </Field>
+        </>
+      ) : (
+        <>
+          <Field label="Título">
+            {editing ? <input className="input-base" value={title} onChange={(e) => setTitle(e.target.value)} /> : <p className="text-sm text-slate-200">{String(card.title)}</p>}
+          </Field>
+          <Field label="Persona">
+            {editing ? <input className="input-base" value={persona} onChange={(e) => setPersona(e.target.value)} /> : <p className="text-sm text-slate-400">{String(card.persona ?? '—')}</p>}
+          </Field>
+          <Field label="Dor">
+            {editing ? <textarea className="input-base h-20 resize-none" value={pain} onChange={(e) => setPain(e.target.value)} /> : <p className="text-sm text-slate-400 whitespace-pre-wrap">{String(card.pain ?? '—')}</p>}
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Pilar">
+              {editing ? (
+                <select className="input-base" value={pillar} onChange={(e) => setPillar(e.target.value)}>
+                  <option value="">—</option>
+                  {Object.values(Pillar).map((p) => <option key={p} value={p}>{PILLAR_LABELS[p] ?? p}</option>)}
+                </select>
+              ) : <p className="text-sm text-slate-400">{card.pillar ? (PILLAR_LABELS[String(card.pillar)] ?? String(card.pillar)) : '—'}</p>}
+            </Field>
+            <Field label="Nível de consciência">
+              {editing ? (
+                <select className="input-base" value={awareness} onChange={(e) => setAwareness(e.target.value)}>
+                  <option value="">—</option>
+                  {Object.values(AwarenessLevel).map((a) => <option key={a} value={a}>{AWARENESS_LABELS[a] ?? a}</option>)}
+                </select>
+              ) : <p className="text-sm text-slate-400">{card.awareness ? (AWARENESS_LABELS[String(card.awareness)] ?? String(card.awareness)) : '—'}</p>}
+            </Field>
+          </div>
+        </>
+      )}
+
       <div className="flex gap-2">
         {editing ? (
           <>
-            <button className="btn-primary text-xs" onClick={() => { onUpdate({ title, persona, pain, ...(signalSource ? { signalSource } : {}), signalContent }); setEditing(false); }}>Salvar</button>
+            <button className="btn-primary text-xs" onClick={save}>Salvar</button>
             <button className="btn-ghost text-xs" onClick={() => setEditing(false)}>Cancelar</button>
           </>
         ) : (
-          <button className="btn-ghost text-xs" onClick={() => { setTitle(String(card.title ?? '')); setPersona(String(card.persona ?? '')); setPain(String(card.pain ?? '')); setSignalSource(String(card.signalSource ?? '')); setSignalContent(String(card.signalContent ?? '')); setEditing(true); }}>Editar</button>
+          <button className="btn-ghost text-xs" onClick={startEdit}>Editar</button>
         )}
       </div>
     </div>
+  );
+}
+
+// ── Link de mídia (gravação / vídeo editado) ──────────────────────────────────
+function MediaTab({ card, onUpdate, field, label }: { card: Rec; onUpdate: (d: Rec) => void; field: 'rawFootageUrl' | 'editedVideoUrl'; label: string }) {
+  const current = String(card[field] ?? '');
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState(current);
+  return (
+    <Field label={label}>
+      {editing ? (
+        <div className="space-y-2">
+          <input className="input-base" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://drive.google.com/…" />
+          <div className="flex gap-2">
+            <button className="btn-primary text-xs" onClick={() => { onUpdate({ [field]: url }); setEditing(false); }}>Salvar</button>
+            <button className="btn-ghost text-xs" onClick={() => { setUrl(current); setEditing(false); }}>Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          {current ? <a href={current} target="_blank" rel="noreferrer" className="text-sm text-brand-300 hover:underline break-all flex-1">{current}</a> : <span className="text-sm text-slate-500 flex-1">Nenhum link.</span>}
+          <button className="btn-ghost text-xs shrink-0" onClick={() => { setUrl(current); setEditing(true); }}>{current ? 'Editar' : 'Adicionar'}</button>
+        </div>
+      )}
+    </Field>
+  );
+}
+
+// ── Classificação da peça (ANALISE) ───────────────────────────────────────────
+function ContentClassField({ card, onUpdate }: { card: Rec; onUpdate: (d: Rec) => void }) {
+  const current = String(card.contentClass ?? '');
+  return (
+    <Field label="Classificação da peça">
+      <select className="input-base" value={current} onChange={(e) => onUpdate({ contentClass: e.target.value })}>
+        <option value="">—</option>
+        {Object.values(ContentClass).map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+      {current ? <span className={`badge mt-2 inline-block ${CLASS_BADGE[current] ?? 'bg-surface-700 text-slate-400'}`}>{current}</span> : null}
+    </Field>
   );
 }
 
@@ -324,7 +526,7 @@ function CopyTab({ cardId, card }: { cardId: string; card: Rec }) {
 // ── Direção criativa ─────────────────────────────────────────────────────────
 function DirecaoTab({ card }: { card: Rec }) {
   const c = card.creative as Rec | null | undefined;
-  if (!c) return <Empty>Direção criativa não definida. Use o Copiloto IA na fase "Direção Criativa".</Empty>;
+  if (!c) return <Empty>Direção criativa não definida. Use o Copiloto IA acima.</Empty>;
   const editing = (c.editingInsights as string[]) ?? [];
   const graphics = (c.graphicElements as Rec[]) ?? [];
   return (
@@ -466,18 +668,25 @@ function ReciclagemTab({ cardId, card }: { cardId: string; card: Rec }) {
   );
 }
 
-// ── Atividade ────────────────────────────────────────────────────────────────
-function AtividadeTab({ card }: { card: Rec }) {
+// ── Comentários / atividade (transversal, colapsável) ─────────────────────────
+function CommentsSection({ card }: { card: Rec }) {
+  const [open, setOpen] = useState(false);
   const comments = (card.comments as Rec[]) ?? [];
   return (
-    <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-slate-500 uppercase">Comentários</h3>
-      {comments.length ? comments.map((c) => (
-        <div key={String(c.id)} className="surface-card bg-surface-850 p-3">
-          <p className="text-xs text-slate-500 mb-1">{String((c.author as Rec)?.name ?? '')} · {formatDate(String(c.createdAt))}</p>
-          <p className="text-sm text-slate-200">{String(c.body)}</p>
+    <div className="mt-6 pt-4 border-t border-surface-800">
+      <button onClick={() => setOpen((o) => !o)} className="text-xs font-semibold text-slate-500 uppercase hover:text-slate-300 flex items-center gap-1.5">
+        <span>{open ? '▾' : '▸'}</span> 💬 Comentários & atividade ({comments.length})
+      </button>
+      {open && (
+        <div className="space-y-3 mt-3">
+          {comments.length ? comments.map((c) => (
+            <div key={String(c.id)} className="surface-card bg-surface-850 p-3">
+              <p className="text-xs text-slate-500 mb-1">{String((c.author as Rec)?.name ?? '')} · {formatDate(String(c.createdAt))}</p>
+              <p className="text-sm text-slate-200">{String(c.body)}</p>
+            </div>
+          )) : <Empty>Sem comentários.</Empty>}
         </div>
-      )) : <Empty>Sem comentários.</Empty>}
+      )}
     </div>
   );
 }
