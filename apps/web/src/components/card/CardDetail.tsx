@@ -54,7 +54,7 @@ export default function CardDetail({ cardId, onClose }: Props) {
     return (
       <div className="fixed inset-0 z-40 flex">
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-        <div className="ml-auto w-full max-w-2xl bg-surface-900 border-l border-surface-700 flex items-center justify-center">
+        <div className="relative ml-auto w-full max-w-2xl bg-surface-900 border-l border-surface-700 flex items-center justify-center">
           <span className="text-slate-500">Carregando…</span>
         </div>
       </div>
@@ -66,7 +66,7 @@ export default function CardDetail({ cardId, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-40 flex">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="ml-auto w-full max-w-2xl bg-surface-900 border-l border-surface-700 shadow-card flex flex-col overflow-hidden animate-slide-in">
+      <div className="relative ml-auto w-full max-w-2xl bg-surface-900 border-l border-surface-700 shadow-card flex flex-col overflow-hidden animate-slide-in">
         {/* Header */}
         <div className="px-5 py-4 border-b border-surface-700 flex items-start justify-between gap-4 shrink-0">
           <div className="flex-1 min-w-0">
