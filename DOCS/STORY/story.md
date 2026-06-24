@@ -160,4 +160,19 @@ Ajustes pós-uso real do copiloto conversacional (sem novo PRD — correções/p
 
 ---
 
+## [2026-06-24] Fix: campos do sinal editáveis no detalhe do card
+
+Correção/polimento (sem novo PRD) — destrava o gate *Sinais do Mercado → Ideias Brutas*.
+
+### Problema
+O gate `PipelineService.canTransition` exige `signalSource` e `signalContent` para sair de *Sinais do Mercado*. Esses campos só existiam no `CreateCardModal`; o `CardDetail` (aba *Template*) não os expunha. Um card já no board sem conteúdo de sinal ficava travado para sempre ("Transição bloqueada: Conteúdo do sinal é obrigatório.") sem nenhum lugar na UI para preenchê-los.
+
+### Correção
+- `CardDetail` → aba **Template**: adicionados **Fonte do sinal** (select de `SignalSource`) e **Conteúdo do sinal** (textarea) ao modo de edição; o `Salvar` envia via PATCH `/cards/:id` (campos já aceitos por `UpdateCardSchema`). Sem mudança de backend nem de schema do banco.
+
+### Estado
+- `tsc --noEmit` do web OK. Deploy: apenas rebuild do container `web` (sem migration).
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*

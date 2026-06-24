@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api.js';
-import { STAGE_LABELS } from '@content-engine/shared';
+import { STAGE_LABELS, SignalSource } from '@content-engine/shared';
 import { formatDate } from '../../lib/utils.js';
 import { useCard, useArchiveCard } from '../../hooks/useBoard.js';
 import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle } from '../../hooks/useAI.js';
-import { PILLAR_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS } from '../../lib/labels.js';
+import { PILLAR_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS } from '../../lib/labels.js';
 import AICopilotButton from './AICopilotButton.js';
 import PhaseChat from './PhaseChat.js';
 import FinalPackageView from './FinalPackageView.js';
@@ -150,6 +150,8 @@ function TemplateTab({ cardId, card, onUpdate }: { cardId: string; card: Rec; on
   const [title, setTitle] = useState(String(card.title ?? ''));
   const [persona, setPersona] = useState(String(card.persona ?? ''));
   const [pain, setPain] = useState(String(card.pain ?? ''));
+  const [signalSource, setSignalSource] = useState(String(card.signalSource ?? ''));
+  const [signalContent, setSignalContent] = useState(String(card.signalContent ?? ''));
   const [rawText, setRawText] = useState('');
   const structure = useAIStructure(cardId);
 
@@ -178,14 +180,25 @@ function TemplateTab({ cardId, card, onUpdate }: { cardId: string; card: Rec; on
       <Field label="Dor">
         {editing ? <textarea className="input-base h-20 resize-none" value={pain} onChange={(e) => setPain(e.target.value)} /> : <p className="text-sm text-slate-400 whitespace-pre-wrap">{String(card.pain ?? '—')}</p>}
       </Field>
+      <Field label="Fonte do sinal">
+        {editing ? (
+          <select className="input-base" value={signalSource} onChange={(e) => setSignalSource(e.target.value)}>
+            <option value="">—</option>
+            {Object.values(SignalSource).map((s) => <option key={s} value={s}>{SIGNAL_LABELS[s] ?? s}</option>)}
+          </select>
+        ) : <p className="text-sm text-slate-400">{card.signalSource ? (SIGNAL_LABELS[String(card.signalSource)] ?? String(card.signalSource)) : '—'}</p>}
+      </Field>
+      <Field label="Conteúdo do sinal">
+        {editing ? <textarea className="input-base h-24 resize-none" value={signalContent} onChange={(e) => setSignalContent(e.target.value)} placeholder="Cole aqui o print/transcrição/comentário…" /> : <p className="text-sm text-slate-400 whitespace-pre-wrap">{String(card.signalContent ?? '—')}</p>}
+      </Field>
       <div className="flex gap-2">
         {editing ? (
           <>
-            <button className="btn-primary text-xs" onClick={() => { onUpdate({ title, persona, pain }); setEditing(false); }}>Salvar</button>
+            <button className="btn-primary text-xs" onClick={() => { onUpdate({ title, persona, pain, ...(signalSource ? { signalSource } : {}), signalContent }); setEditing(false); }}>Salvar</button>
             <button className="btn-ghost text-xs" onClick={() => setEditing(false)}>Cancelar</button>
           </>
         ) : (
-          <button className="btn-ghost text-xs" onClick={() => { setTitle(String(card.title ?? '')); setPersona(String(card.persona ?? '')); setPain(String(card.pain ?? '')); setEditing(true); }}>Editar</button>
+          <button className="btn-ghost text-xs" onClick={() => { setTitle(String(card.title ?? '')); setPersona(String(card.persona ?? '')); setPain(String(card.pain ?? '')); setSignalSource(String(card.signalSource ?? '')); setSignalContent(String(card.signalContent ?? '')); setEditing(true); }}>Editar</button>
         )}
       </div>
     </div>
