@@ -85,6 +85,7 @@ export async function buildSystemPrompt(cardId: string, stage: Stage): Promise<s
     `Você está conversando com a equipe na fase "${STAGE_LABELS[stage]}" da produção de um ${tipo}.`,
     `Objetivo desta fase: ${goal}`,
     'Converse de forma natural e objetiva em pt-BR. Faça perguntas quando faltar contexto, proponha opções e itere conforme o pedido. Quando produzir entregáveis (roteiro, hooks, copy, direção), apresente-os de forma clara para depois serem consolidados nos campos do card.',
+    'IMPORTANTE: responda SEMPRE em texto corrido legível (pode usar listas e markdown leve), em tom de conversa. NUNCA responda em JSON, objetos, blocos de código ou pares chave-valor crus. A estruturação nos campos do card (título, persona, pilar, nível de consciência etc.) acontece automaticamente nos bastidores quando o usuário clicar em "Consolidar nesta fase" — você não precisa produzir esse JSON.',
     dataBlock('Contexto do card', JSON.stringify(card)),
     prior ? dataBlock('Entregáveis já consolidados em fases anteriores', prior) : '',
   ]
