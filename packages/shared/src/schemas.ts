@@ -284,6 +284,65 @@ export const AIRecycleInputSchema = z.object({
 
 // ── AI outputs (estruturados — SPEC-001 §9.3 / SPEC-002 §1.3) ──────────────────
 
+/** Normaliza string: minúsculas, sem acentos, espaços colapsados. */
+function normalizeText(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Coerção tolerante de enum: a IA frequentemente devolve o rótulo legível
+ * ("Consciente do problema…") ou uma frase em vez do valor do enum. Esta
+ * função mapeia por (1) valor exato, (2) fragmentos-chave. Se nada casar,
+ * retorna undefined — o campo é opcional e a consolidação não quebra.
+ */
+function coerceEnum<T extends Record<string, string>>(
+  enumObj: T,
+  keywords: Partial<Record<T[keyof T], string[]>>,
+) {
+  const values = Object.values(enumObj) as T[keyof T][];
+  return (raw: unknown): T[keyof T] | undefined => {
+    if (typeof raw !== 'string') return undefined;
+    const n = normalizeText(raw);
+    if (!n) return undefined;
+    for (const v of values) {
+      if (n === normalizeText(v)) return v;
+    }
+    for (const v of values) {
+      for (const frag of keywords[v] ?? []) {
+        if (n.includes(frag)) return v;
+      }
+    }
+    return undefined;
+  };
+}
+
+const PillarLoose = z.preprocess(
+  coerceEnum(Pillar, {
+    [Pillar.DOR_DONO_AGENCIA]: ['dor'],
+    [Pillar.QUEBRA_CRENCA]: ['quebra', 'crenc'],
+    [Pillar.OPORTUNIDADE_TICKET]: ['oportunidade', 'ticket'],
+    [Pillar.PRODUTO_MECANISMO]: ['produto', 'mecanismo'],
+    [Pillar.PROVA_BASTIDORES]: ['prova', 'bastidor'],
+    [Pillar.OBJECOES]: ['objec', 'objeç'],
+    [Pillar.AUTORIDADE]: ['autoridade'],
+  }),
+  z.nativeEnum(Pillar).optional(),
+);
+
+const AwarenessLoose = z.preprocess(
+  coerceEnum(AwarenessLevel, {
+    [AwarenessLevel.INTENCAO]: ['intenc', 'intenç', 'decis', 'compra'],
+    [AwarenessLevel.IDENTIFICACAO]: ['identifica', 'solucao', 'solução', 'produto'],
+    [AwarenessLevel.NOVA_PERSPECTIVA]: ['perspectiv', 'nova'],
+    [AwarenessLevel.PROBLEMA]: ['problema'],
+  }),
+  z.nativeEnum(AwarenessLevel).optional(),
+);
+
 /** Prospecção de ideias a partir de sinais. */
 export const AIProspectOutputSchema = z.object({
   ideas: z
@@ -293,7 +352,7 @@ export const AIProspectOutputSchema = z.object({
         dorPrincipal: z.string(),
         persona: z.string(),
         objetivo: z.string(),
-        pillar: z.nativeEnum(Pillar).optional(),
+        pillar: PillarLoose,
       }),
     )
     .min(1),
@@ -306,8 +365,8 @@ export const AIStructureOutputSchema = z.object({
   persona: z.string().optional(),
   pain: z.string().optional(),
   promise: z.string().optional(),
-  pillar: z.nativeEnum(Pillar).optional(),
-  awareness: z.nativeEnum(AwarenessLevel).optional(),
+  pillar: PillarLoose,
+  awareness: AwarenessLoose,
 });
 
 /** Validação assistida — 6 notas (0–3) + justificativa por critério. */
