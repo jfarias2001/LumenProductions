@@ -143,4 +143,21 @@
 
 ---
 
+## [2026-06-24] Correções de UX do modal/copiloto
+
+Ajustes pós-uso real do copiloto conversacional (sem novo PRD — correções/polimento sobre o PRD-003).
+
+### Correções
+- **Modal `CardDetail` embaçado e sem clique**: o painel era `position: static` enquanto o overlay `backdrop-blur` era `position: fixed`; num mesmo stacking context o overlay posicionado pintava por cima. Adicionado `relative` ao painel (mesmo padrão do `CreateCardModal`).
+- **Consolidação quebrava no enum**: a IA devolvia o rótulo legível (ex.: "Consciente do problema…") em vez do valor do enum (`PROBLEMA|…`), e `z.nativeEnum` abortava toda a consolidação. Criado `coerceEnum` em `schemas.ts` (mapeia rótulo/frase → valor por match exato ou fragmentos-chave, sem acento/case-insensitive; cai para `undefined` se não casar). Aplicado a `pillar` e `awareness` em `AIStructureOutputSchema` e `AIProspectOutputSchema`.
+
+### Melhorias de fluxo (PhaseChat)
+- Prompt do copiloto reforçado: responde **sempre em texto natural**, nunca JSON cru no chat (a estruturação é só no Consolidar).
+- Após consolidar: **resumo** dos campos gravados (por tipo de fase) + botão **"Avançar → próxima fase"** que move o card no board (consolidar → avançar). Erros de gate de qualidade aparecem inline.
+
+### Estado
+- `pnpm typecheck` OK em shared, api e web. Mudança em `packages/shared` exige rebuild do `dist` (feito no Docker durante o deploy).
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
