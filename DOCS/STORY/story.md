@@ -199,4 +199,36 @@ O `CardDetail` renderizava **as 14 abas ao mesmo tempo**, independentemente do e
 
 ---
 
+## [2026-06-24] Fase 4 — Geração com IA por fase ("Gerar com IA")
+
+**Base:** PRD-004 / SPEC-004. Motivação: o copiloto do PRD-003 era só **conversacional** (dialogar → Consolidar), o que pressupõe o usuário já ter algo. Relato: *"quero uma opção de gerar com IA — na parte de ideias brutas, quando não tenho ideias, gerar ideias baseadas em alguma informação, e assim nas outras etapas"*.
+
+### Decisões (travadas com o usuário)
+- **Ideias Brutas** → gera UMA ideia estruturada e **preenche o card atual** (não cria vários cards; isso continua sendo a prospecção do PRD-002).
+- **UI** → botão **"✦ Gerar com IA"** dentro do copiloto (ao lado de "Consolidar"), com campo de contexto.
+- **Cobertura** → todas as fases criativas (`CONVERSATIONAL_STAGES`).
+- A geração é, na prática, um **"Consolidar" cuja fonte é o contexto digitado** em vez da transcrição da conversa.
+
+### Shared (`packages/shared`)
+- `GenerateStageInputSchema` (`context: string opcional`) + tipo `GenerateStageInput`. Sem mudança de enum.
+
+### Backend (`apps/api`)
+- `ai.service`: extraído `persistStageFromSource(cardId, stage, userId, source)` (o switch antes embutido em `consolidateStage`); `consolidateStage` agora só obtém a transcrição e delega. Novo `generateStage(cardId, stage, userId, context?)` — valida (contexto obrigatório só em IDEIAS_BRUTAS, `code: NEED_CONTEXT`), persiste via `persistStageFromSource` e registra a geração na conversa. Novo `summarizeResultForChat` (resumo legível por entidade).
+- `conversation.service`: `appendGeneratedTurn` grava 2 `AIMessage` (pedido do usuário + resumo da IA) na thread da fase — o resumo vem pronto de `ai.service` (evita ciclo de import).
+- `routes/conversations.ts`: `POST /cards/:id/conversations/:stage/generate` (`useAI`, valida `isConversationalStage`, body `GenerateStageInputSchema`). Sem chave → 503; falha → 502; emite `card.updated`.
+
+### Frontend (`apps/web`)
+- `useConversation`: `useGenerate(cardId, stage)` (invalida conversation/card/deliverable/board).
+- `PhaseChat`: botão "✦ Gerar com IA" + painel colapsável com textarea de contexto (label avisa obrigatório em Ideias Brutas) e botão "Gerar"; o painel verde de sucesso passou a servir consolidar **ou** gerar (`summaryLines` reaproveitado); turnos gerados aparecem no histórico após a invalidação. Reset do painel ao trocar de fase.
+
+### Estado atual
+- Em cada fase criativa dá para **gerar do zero** a partir de um contexto (ou do próprio card) e o entregável é gravado nos campos reais; também vira turnos na conversa para refinar e consolidar depois. Validação gerada segue como sugestão (gates do `PipelineService` intactos). Sem `OPENAI_API_KEY` → fallback claro.
+- `pnpm -r typecheck` OK nos 3 pacotes; `vite build` do web OK. **Sem migração** (reusa entidades existentes). Mudança em `packages/shared` exige rebuild do `dist` (feito).
+
+### Próximos passos sugeridos
+- Permitir "gerar" também a partir de um prompt template (chip → preenche o contexto da geração).
+- Opção de regenerar substituindo (em vez de acumular) ângulos/derivados que usam `createMany`.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*

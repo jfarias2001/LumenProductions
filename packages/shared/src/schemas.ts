@@ -451,6 +451,13 @@ export const ConsolidateInputSchema = z.object({
   stage: z.nativeEnum(Stage).optional(),
 });
 
+// ── Geração com IA por fase (PRD-004 / SPEC-004) ───────────────────────────────
+
+export const GenerateStageInputSchema = z.object({
+  /** Informação de partida fornecida pelo usuário. Obrigatória em IDEIAS_BRUTAS; opcional nas demais fases. */
+  context: z.string().max(8000).optional(),
+});
+
 // ── Prompt templates por fase (PRD-003 §5.2) ───────────────────────────────────
 
 export const CreatePromptTemplateSchema = z.object({
@@ -493,5 +500,6 @@ export type AIRecycleOutput = z.infer<typeof AIRecycleOutputSchema>;
 export type AIDirectionOutput = z.infer<typeof AIDirectionOutputSchema>;
 export type ConversationMessageInput = z.infer<typeof ConversationMessageInputSchema>;
 export type ConsolidateInput = z.infer<typeof ConsolidateInputSchema>;
+export type GenerateStageInput = z.infer<typeof GenerateStageInputSchema>;
 export type CreatePromptTemplateInput = z.infer<typeof CreatePromptTemplateSchema>;
 export type UpdatePromptTemplateInput = z.infer<typeof UpdatePromptTemplateSchema>;

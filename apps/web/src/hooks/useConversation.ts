@@ -106,3 +106,18 @@ export function useConsolidate(cardId: string, stage: Stage) {
     },
   });
 }
+
+/** Gera o entregável da fase a partir de um contexto fornecido (PRD-004). */
+export function useGenerate(cardId: string, stage: Stage) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (context?: string) =>
+      api.post(`/cards/${cardId}/conversations/${stage}/generate`, { context }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['conversation', cardId, stage] });
+      void qc.invalidateQueries({ queryKey: ['card', cardId] });
+      void qc.invalidateQueries({ queryKey: ['deliverable', cardId] });
+      void qc.invalidateQueries({ queryKey: ['board'] });
+    },
+  });
+}

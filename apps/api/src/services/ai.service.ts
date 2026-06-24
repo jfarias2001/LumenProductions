@@ -27,7 +27,7 @@ import { prisma } from '../lib/prisma.js';
 import { getAIProvider } from '../lib/ai/provider.js';
 import { Prisma } from '@prisma/client';
 import { calculateValidation } from './validation.service.js';
-import { transcript } from './conversation.service.js';
+import { transcript, appendGeneratedTurn } from './conversation.service.js';
 
 /** Custo estimado (USD) bem aproximado p/ gpt-4o-mini — apenas observabilidade. */
 const COST_PER_1K = { input: 0.00015, output: 0.0006 };
@@ -250,22 +250,20 @@ export interface ConsolidateResult {
 }
 
 /**
- * Mapeia o estágio da conversa para a função estruturada correspondente, usando a
- * transcrição como fonte, e persiste o resultado como rascunho/sugestão editável.
- * A validação entra como sugestão (aiSuggested) sem reviewedById — o gate continua
- * exigindo confirmação humana (regra do PipelineService preservada).
+ * Mapeia o estágio para a função estruturada correspondente, usando um texto-fonte
+ * (transcrição da conversa OU contexto fornecido na geração) e persiste o resultado
+ * como rascunho/sugestão editável. A validação entra como sugestão (aiSuggested) sem
+ * reviewedById — o gate continua exigindo confirmação humana (PipelineService preservado).
  */
-export async function consolidateStage(cardId: string, stage: Stage, userId?: string): Promise<ConsolidateResult> {
-  const convo = await transcript(cardId, stage);
-  if (!convo.trim()) {
-    throw Object.assign(new Error('A conversa desta fase está vazia — converse com a IA antes de consolidar.'), {
-      code: 'EMPTY_CONVERSATION',
-    });
-  }
-
+async function persistStageFromSource(
+  cardId: string,
+  stage: Stage,
+  userId: string | undefined,
+  source: string,
+): Promise<ConsolidateResult> {
   switch (stage) {
     case Stage.IDEIAS_BRUTAS: {
-      const out = await structure(convo, cardId, userId);
+      const out = await structure(source, cardId, userId);
       const card = await prisma.card.update({
         where: { id: cardId },
         data: {
@@ -281,7 +279,7 @@ export async function consolidateStage(cardId: string, stage: Stage, userId?: st
     }
 
     case Stage.IDEIAS_VALIDADAS: {
-      const out = await validate(cardId, userId, convo);
+      const out = await validate(cardId, userId, source);
       const scores = {
         dorQuente: out.dorQuente,
         clareza: out.clareza,
@@ -301,7 +299,7 @@ export async function consolidateStage(cardId: string, stage: Stage, userId?: st
 
     case Stage.ANGULO_DEFINIDO:
     case Stage.HOOKS_EM_TESTE: {
-      const out = await angles(cardId, userId, convo);
+      const out = await angles(cardId, userId, source);
       await prisma.angle.createMany({ data: out.angles.map((a) => ({ cardId, type: a.type, text: a.text, aiGenerated: true })) });
       await prisma.hook.createMany({ data: out.hooks.map((h) => ({ cardId, text: h, aiGenerated: true })) });
       const [anglesList, hooksList] = await Promise.all([
@@ -313,7 +311,7 @@ export async function consolidateStage(cardId: string, stage: Stage, userId?: st
 
     case Stage.ROTEIRO:
     case Stage.COPY_LEGENDA_CTA: {
-      const out = await copy(cardId, userId, convo);
+      const out = await copy(cardId, userId, source);
       const script = await prisma.script.upsert({
         where: { cardId },
         update: { ...out.script, aiGenerated: true },
@@ -331,7 +329,7 @@ export async function consolidateStage(cardId: string, stage: Stage, userId?: st
     }
 
     case Stage.DIRECAO_CRIATIVA: {
-      const out = await direction(cardId, userId, convo);
+      const out = await direction(cardId, userId, source);
       const creative = await prisma.creativeDirection.upsert({
         where: { cardId },
         update: {
@@ -356,7 +354,7 @@ export async function consolidateStage(cardId: string, stage: Stage, userId?: st
     }
 
     case Stage.ESCALAR_RECICLAR: {
-      const out = await recycle(cardId, userId, convo);
+      const out = await recycle(cardId, userId, source);
       await prisma.derivedAsset.createMany({
         data: out.derivedAssets.map((d) => ({ cardId, type: d.type, content: d.content, aiGenerated: true })),
       });
@@ -367,4 +365,76 @@ export async function consolidateStage(cardId: string, stage: Stage, userId?: st
     default:
       throw Object.assign(new Error('Esta fase não suporta consolidação automática.'), { code: 'STAGE_NOT_CONSOLIDABLE' });
   }
+}
+
+/**
+ * Consolida a conversa de uma fase: usa a transcrição como fonte e persiste nas
+ * entidades reais do card. Mantido como API pública (rota /consolidate).
+ */
+export async function consolidateStage(cardId: string, stage: Stage, userId?: string): Promise<ConsolidateResult> {
+  const convo = await transcript(cardId, stage);
+  if (!convo.trim()) {
+    throw Object.assign(new Error('A conversa desta fase está vazia — converse com a IA antes de consolidar.'), {
+      code: 'EMPTY_CONVERSATION',
+    });
+  }
+  return persistStageFromSource(cardId, stage, userId, convo);
+}
+
+/** Resumo curto e legível do que a geração gravou, por entidade — vira o turno da IA no chat. */
+function summarizeResultForChat(result: ConsolidateResult): string {
+  const d = result.data as Record<string, unknown>;
+  switch (result.entity) {
+    case 'card':
+      return [
+        '✦ Ideia estruturada e gravada nos campos do card:',
+        d.title ? `• Título: ${d.title as string}` : null,
+        d.persona ? `• Persona: ${d.persona as string}` : null,
+        d.pain ? `• Dor: ${d.pain as string}` : null,
+        d.promise ? `• Promessa: ${d.promise as string}` : null,
+        d.pillar ? `• Pilar: ${String(d.pillar)}` : null,
+        d.awareness ? `• Consciência: ${String(d.awareness)}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    case 'validation':
+      return `✦ Validação gerada (sugestão): ${String(d.total)}/18 — veredito ${String(d.verdict).replace(/_/g, ' ')}. Continua exigindo revisão humana no gate.`;
+    case 'angles': {
+      const a = (d.angles as unknown[])?.length ?? 0;
+      const h = (d.hooks as unknown[])?.length ?? 0;
+      return `✦ Gerados ${a} ângulo(s) e ${h} hook(s) e gravados no card.`;
+    }
+    case 'copy':
+      return '✦ Roteiro, legenda e variações de CTA gerados e gravados no card.';
+    case 'creative':
+      return `✦ Direção criativa gerada${d.format ? ` (formato ${String(d.format).replace(/_/g, ' ')})` : ''} e gravada no card.`;
+    case 'derivedAssets':
+      return `✦ Gerados ${Array.isArray(result.data) ? result.data.length : 0} ativo(s) derivado(s) e gravados no card.`;
+    default:
+      return '✦ Conteúdo gerado e gravado nos campos do card.';
+  }
+}
+
+/**
+ * Gera o entregável de uma fase a partir de um contexto fornecido pelo usuário (PRD-004).
+ * Persiste no card (mesmo destino do consolidar) e registra a geração como dois turnos
+ * na conversa da fase (pedido do usuário + resumo da IA), para refinar depois no chat.
+ */
+export async function generateStage(
+  cardId: string,
+  stage: Stage,
+  userId: string | undefined,
+  context?: string,
+): Promise<ConsolidateResult> {
+  const source = (context ?? '').trim();
+  if (stage === Stage.IDEIAS_BRUTAS && !source) {
+    throw Object.assign(new Error('Informe uma informação de partida para gerar a ideia.'), { code: 'NEED_CONTEXT' });
+  }
+
+  const result = await persistStageFromSource(cardId, stage, userId, source);
+
+  const userText = source ? `✦ Gerar com IA — baseado em: ${source}` : '✦ Gerar com IA';
+  await appendGeneratedTurn(cardId, stage, userId, userText, summarizeResultForChat(result));
+
+  return result;
 }

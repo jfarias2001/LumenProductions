@@ -12,10 +12,11 @@ import { prisma } from '../lib/prisma.js';
 import { emitBoard } from '../lib/emitter.js';
 import { getAIProvider, AINotConfiguredError } from '../lib/ai/provider.js';
 import * as conversationService from '../services/conversation.service.js';
-import { consolidateStage } from '../services/ai.service.js';
+import { consolidateStage, generateStage } from '../services/ai.service.js';
 import { assemble, toMarkdown } from '../services/deliverable.service.js';
 import {
   ConversationMessageInputSchema,
+  GenerateStageInputSchema,
   CreatePromptTemplateSchema,
   UpdatePromptTemplateSchema,
   Stage,
@@ -104,6 +105,27 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
     }
     try {
       const result = await consolidateStage(cardId, stage, request.actor.sub);
+      emitBoard('card.updated', { id: cardId });
+      return reply.send(result);
+    } catch (err) {
+      return aiError(reply, err);
+    }
+  });
+
+  // ── Gerar entregável da fase a partir de um contexto (PRD-004) ──────────────
+  fastify.post('/cards/:cardId/conversations/:stage/generate', ai, async (request, reply) => {
+    const { cardId, stage: rawStage } = request.params as { cardId: string; stage: string };
+    const stage = parseStage(rawStage, reply);
+    if (!stage) return;
+    if (!isConversationalStage(stage)) {
+      return reply.status(400).send({ error: { code: 'STAGE_NOT_CONSOLIDABLE', message: 'Esta fase não gera conteúdo.' } });
+    }
+    const { context } = GenerateStageInputSchema.parse(request.body);
+    if (!getAIProvider().enabled) {
+      return reply.status(503).send({ error: { code: 'AI_NOT_CONFIGURED', message: 'Camada de IA não configurada.' } });
+    }
+    try {
+      const result = await generateStage(cardId, stage, request.actor.sub, context);
       emitBoard('card.updated', { id: cardId });
       return reply.send(result);
     } catch (err) {

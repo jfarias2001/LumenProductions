@@ -160,6 +160,28 @@ export async function sendMessage({ cardId, stage, content, userId, onToken }: S
   }
 }
 
+/**
+ * Registra uma geração ("✦ Gerar com IA") como dois turnos na conversa da fase:
+ * o pedido do usuário e o resumo do que a IA gerou. Mantém o histórico coerente para
+ * que o usuário continue refinando no chat. O resumo já vem pronto (evita ciclo de import).
+ */
+export async function appendGeneratedTurn(
+  cardId: string,
+  stage: Stage,
+  userId: string | undefined,
+  userText: string,
+  assistantText: string,
+) {
+  const conversation = await getOrCreate(cardId, stage);
+  await prisma.aIMessage.create({
+    data: { conversationId: conversation.id, role: 'user', content: userText, authorId: userId ?? null },
+  });
+  await prisma.aIMessage.create({
+    data: { conversationId: conversation.id, role: 'assistant', content: assistantText },
+  });
+  await prisma.aIConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } });
+}
+
 /** Transcrição da conversa de uma fase — usada como contexto na consolidação. */
 export async function transcript(cardId: string, stage: Stage): Promise<string> {
   const conversation = await prisma.aIConversation.findUnique({

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CONVERSATIONAL_STAGES, STAGE_LABELS, STAGE_ORDER, Stage, isConversationalStage } from '@content-engine/shared';
-import { useConversation, useSendMessage, useConsolidate } from '../../hooks/useConversation.js';
+import { useConversation, useSendMessage, useConsolidate, useGenerate } from '../../hooks/useConversation.js';
 import { useTransitionCard } from '../../hooks/useBoard.js';
 import { usePromptTemplates } from '../../hooks/usePromptTemplates.js';
 import { PILLAR_LABELS, AWARENESS_LABELS } from '../../lib/labels.js';
@@ -68,18 +68,31 @@ export default function PhaseChat({ cardId, currentStage, embedded = false }: Pr
   const initial = isConversationalStage(currentStage) ? currentStage : CONVERSATIONAL_STAGES[0]!;
   const [stage, setStage] = useState<Stage>(initial);
   const [input, setInput] = useState('');
+  const [genOpen, setGenOpen] = useState(false);
+  const [genContext, setGenContext] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: conversation, isLoading } = useConversation(cardId, stage);
   const { send, streaming, pending, error } = useSendMessage(cardId, stage);
   const consolidate = useConsolidate(cardId, stage);
+  const generate = useGenerate(cardId, stage);
   const { data: prompts = [] } = usePromptTemplates(stage);
+
+  // Em Ideias Brutas o contexto é obrigatório (não há card preenchido para inferir).
+  const contextRequired = stage === Stage.IDEIAS_BRUTAS;
+  const canGenerate = !generate.isPending && (!contextRequired || genContext.trim().length > 0);
 
   const messages = useMemo(() => conversation?.messages ?? [], [conversation]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages.length, streaming]);
+
+  // Ao trocar de fase, fecha/limpa o painel de geração.
+  useEffect(() => {
+    setGenOpen(false);
+    setGenContext('');
+  }, [stage]);
 
   async function handleSend(text: string) {
     const content = text.trim();
@@ -94,7 +107,21 @@ export default function PhaseChat({ cardId, currentStage, embedded = false }: Pr
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
   const nextStage = currentIdx >= 0 && currentIdx < STAGE_ORDER.length - 1 ? STAGE_ORDER[currentIdx + 1]! : null;
   const canAdvance = stage === currentStage && nextStage !== null && nextStage !== Stage.ARQUIVADO;
-  const summary = summaryLines(consolidate.data as ConsolidateResult | undefined);
+  const lastResult = (generate.data ?? consolidate.data) as ConsolidateResult | undefined;
+  const showSuccess = generate.isSuccess || consolidate.isSuccess;
+  const summary = summaryLines(lastResult);
+
+  async function handleGenerate() {
+    if (!canGenerate) return;
+    const ctx = genContext.trim();
+    try {
+      await generate.mutateAsync(ctx || undefined);
+      setGenContext('');
+      setGenOpen(false);
+    } catch {
+      // erro exibido inline; mantém o contexto para o usuário retentar
+    }
+  }
 
   function handleAdvance() {
     if (!nextStage) return;
@@ -119,21 +146,58 @@ export default function PhaseChat({ cardId, currentStage, embedded = false }: Pr
           </select>
         )}
         <button
+          onClick={() => setGenOpen((v) => !v)}
+          className={`btn-ai ml-auto !py-1.5 text-xs ${genOpen ? 'ring-1 ring-ai-500/50' : ''}`}
+          title="Gerar o conteúdo desta fase a partir de uma informação"
+        >
+          ✦ Gerar com IA
+        </button>
+        <button
           onClick={() => consolidate.mutate()}
           disabled={consolidate.isPending || !messages.length}
-          className="btn-ai ml-auto !py-1.5 text-xs"
+          className="btn-ai !py-1.5 text-xs"
           title="Transformar a conversa nos campos do card"
         >
-          {consolidate.isPending ? 'Consolidando…' : '✓ Consolidar nesta fase'}
+          {consolidate.isPending ? 'Consolidando…' : '✓ Consolidar'}
         </button>
       </div>
+
+      {/* Painel "Gerar com IA" */}
+      {genOpen && (
+        <div className="mb-3 shrink-0 surface-card bg-surface-850 border-ai-500/30 p-3 space-y-2 animate-fade-in">
+          <p className="text-xs font-semibold text-ai-300">
+            ✦ Gerar com IA {contextRequired && <span className="text-amber-300/80">(informação obrigatória)</span>}
+          </p>
+          <textarea
+            className="input-base resize-none h-[72px] text-sm"
+            value={genContext}
+            onChange={(e) => setGenContext(e.target.value)}
+            placeholder={
+              contextRequired
+                ? 'Baseado em qual informação? Ex.: tema, transcrição, dado de mercado, dor observada…'
+                : 'Informação de partida (opcional) — a IA também usa o que já existe no card.'
+            }
+          />
+          <div className="flex items-center gap-2">
+            <button onClick={() => void handleGenerate()} disabled={!canGenerate} className="btn-primary text-xs">
+              {generate.isPending ? 'Gerando…' : 'Gerar'}
+            </button>
+            <span className="text-[11px] text-slate-500">A IA grava o resultado nos campos do card.</span>
+          </div>
+          {generate.isError && (
+            <p className="text-[11px] text-amber-300/80">{(generate.error as Error)?.message ?? 'Falha ao gerar.'}</p>
+          )}
+        </div>
+      )}
 
       {consolidate.isError && (
         <p className="text-[11px] text-amber-300/80 pb-2">{(consolidate.error as Error)?.message ?? 'Falha ao consolidar.'}</p>
       )}
-      {consolidate.isSuccess && (
+      {showSuccess && (
         <div className="mb-3 shrink-0 surface-card bg-surface-850 border-emerald-500/30 p-3 space-y-2 animate-fade-in">
-          <p className="text-xs font-semibold text-emerald-300">✓ Consolidado nos campos do card</p>
+          <p className="text-xs font-semibold text-emerald-300">
+            {generate.isSuccess ? '✓ Gerado e gravado nos campos do card' : '✓ Consolidado nos campos do card'}
+          </p>
           {summary.length > 0 && (
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
               {summary.map((l) => (
