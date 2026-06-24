@@ -2,26 +2,15 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../../lib/utils.js';
 import { useUIStore } from '../../store/ui.js';
+import { PILLAR_LABELS, PILLAR_BADGE, CLASS_BADGE, VERDICT_BADGE } from '../../lib/labels.js';
 import type { CardSummary } from '../../hooks/useBoard.js';
-
-const VERDICT_COLOR: Record<string, string> = {
-  SEGUIR_ROTEIRO: 'bg-green-100 text-green-700',
-  MELHORAR_ANGULO: 'bg-amber-100 text-amber-700',
-  DESCARTAR: 'bg-red-100 text-red-700',
-};
-
-const CLASS_COLOR: Record<string, string> = {
-  VIRAL: 'bg-purple-100 text-purple-700',
-  AUTORIDADE: 'bg-blue-100 text-blue-700',
-  VENDEDOR: 'bg-green-100 text-green-700',
-  FRACO: 'bg-gray-100 text-gray-500',
-};
 
 interface Props {
   card: CardSummary;
+  dragging?: boolean;
 }
 
-export default function KanbanCard({ card }: Props) {
+export default function KanbanCard({ card, dragging }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
   const setOpenCard = useUIStore((s) => s.setOpenCard);
 
@@ -35,32 +24,38 @@ export default function KanbanCard({ card }: Props) {
       {...listeners}
       onClick={() => setOpenCard(card.id)}
       className={cn(
-        'bg-white rounded-lg border border-gray-200 p-3 cursor-pointer select-none hover:border-brand-300 hover:shadow-sm transition-all',
-        isDragging && 'opacity-50 shadow-lg',
+        'group bg-surface-800 rounded-lg border border-surface-700 p-3 cursor-pointer select-none',
+        'hover:border-brand-500/60 hover:bg-surface-700/60 transition-all',
+        (isDragging || dragging) && 'opacity-90 border-brand-500 shadow-glow rotate-1',
       )}
     >
-      <p className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">{card.title}</p>
+      <p className="text-[13px] font-medium text-slate-100 line-clamp-2 mb-2 leading-snug">{card.title}</p>
 
       <div className="flex flex-wrap gap-1">
         {card.pillar && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">
-            {card.pillar.replace(/_/g, ' ')}
+          <span className={cn('badge', PILLAR_BADGE[card.pillar] ?? 'bg-surface-700 text-slate-400')}>
+            {PILLAR_LABELS[card.pillar] ?? card.pillar}
           </span>
         )}
         {card.validation && (
-          <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', VERDICT_COLOR[card.validation.verdict] ?? 'bg-gray-100 text-gray-600')}>
+          <span className={cn('badge', VERDICT_BADGE[card.validation.verdict] ?? 'bg-surface-700 text-slate-400')}>
             {card.validation.total}/18
           </span>
         )}
         {card.contentClass && (
-          <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', CLASS_COLOR[card.contentClass] ?? '')}>
+          <span className={cn('badge', CLASS_BADGE[card.contentClass] ?? 'bg-surface-700 text-slate-400')}>
             {card.contentClass}
           </span>
         )}
       </div>
 
       {card.assignee && (
-        <p className="text-[10px] text-gray-400 mt-1.5">{card.assignee.name}</p>
+        <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-surface-700/60">
+          <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-brand-600/30 text-brand-300 text-[8px] font-bold">
+            {card.assignee.name.charAt(0).toUpperCase()}
+          </span>
+          <span className="text-[10px] text-slate-500">{card.assignee.name}</span>
+        </div>
       )}
     </div>
   );

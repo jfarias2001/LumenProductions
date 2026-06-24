@@ -279,6 +279,85 @@ export const AIRecycleInputSchema = z.object({
   cardId: z.string().cuid(),
 });
 
+// ── AI outputs (estruturados — SPEC-001 §9.3 / SPEC-002 §1.3) ──────────────────
+
+/** Prospecção de ideias a partir de sinais. */
+export const AIProspectOutputSchema = z.object({
+  ideas: z
+    .array(
+      z.object({
+        hook: z.string(),
+        dorPrincipal: z.string(),
+        persona: z.string(),
+        objetivo: z.string(),
+        pillar: z.nativeEnum(Pillar).optional(),
+      }),
+    )
+    .min(1),
+  temasRecorrentes: z.array(z.string()).default([]),
+});
+
+/** Estruturação de input solto em campos do template. */
+export const AIStructureOutputSchema = z.object({
+  title: z.string(),
+  persona: z.string().optional(),
+  pain: z.string().optional(),
+  promise: z.string().optional(),
+  pillar: z.nativeEnum(Pillar).optional(),
+  awareness: z.nativeEnum(AwarenessLevel).optional(),
+});
+
+/** Validação assistida — 6 notas (0–3) + justificativa por critério. */
+export const AIValidateOutputSchema = z.object({
+  dorQuente: ScoreField,
+  clareza: ScoreField,
+  contraste: ScoreField,
+  especificidadeAgencia: ScoreField,
+  potencialComentarios: ScoreField,
+  potencialComercial: ScoreField,
+  justificativas: z.record(z.string()).default({}),
+});
+
+/** Ângulos + hooks. */
+export const AIAnglesOutputSchema = z.object({
+  angles: z
+    .array(
+      z.object({
+        type: z.nativeEnum(AngleType),
+        text: z.string(),
+      }),
+    )
+    .min(1),
+  hooks: z.array(z.string()).min(3).max(12),
+});
+
+/** Geração de copy: roteiro + legenda + CTAs. */
+export const AICopyOutputSchema = z.object({
+  script: z.object({
+    dor: z.string(),
+    quebra: z.string(),
+    mecanismo: z.string(),
+    beneficio: z.string(),
+    cta: z.string(),
+    durationSec: z.number().int().min(15).max(90).default(40),
+  }),
+  caption: z.string(),
+  ctaVariations: z.array(z.string()).min(1),
+  screenTexts: z.array(z.string()).default([]),
+});
+
+/** Reciclagem: ativos derivados. */
+export const AIRecycleOutputSchema = z.object({
+  derivedAssets: z
+    .array(
+      z.object({
+        type: z.nativeEnum(DerivedAssetType),
+        content: z.string(),
+      }),
+    )
+    .min(1),
+});
+
 // ── Inferred types ────────────────────────────────────────────────────────────
 
 export type LoginInput = z.infer<typeof LoginSchema>;
@@ -300,3 +379,9 @@ export type DerivedAssetInput = z.infer<typeof DerivedAssetSchema>;
 export type CreateCommentInput = z.infer<typeof CreateCommentSchema>;
 export type BoardFiltersInput = z.infer<typeof BoardFiltersSchema>;
 export type AppSettingInput = z.infer<typeof AppSettingSchema>;
+export type AIProspectOutput = z.infer<typeof AIProspectOutputSchema>;
+export type AIStructureOutput = z.infer<typeof AIStructureOutputSchema>;
+export type AIValidateOutput = z.infer<typeof AIValidateOutputSchema>;
+export type AIAnglesOutput = z.infer<typeof AIAnglesOutputSchema>;
+export type AICopyOutput = z.infer<typeof AICopyOutputSchema>;
+export type AIRecycleOutput = z.infer<typeof AIRecycleOutputSchema>;

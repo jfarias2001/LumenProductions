@@ -25,18 +25,23 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+    <div className="min-h-screen bg-surface-950 flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Glow de fundo */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-96 rounded-full bg-brand-600/20 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 rounded-full bg-ai-600/10 blur-3xl" />
+
+      <div className="w-full max-w-sm surface-card shadow-card p-8 relative animate-fade-in">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Content Engine</h1>
-          <p className="text-sm text-gray-500 mt-1">Lumen Digital</p>
+          <div className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-gradient-to-br from-brand-500 to-ai-500 text-white font-bold text-lg mb-3 shadow-glow">
+            ◑
+          </div>
+          <h1 className="text-2xl font-bold text-white">Content Engine</h1>
+          <p className="text-sm text-slate-400 mt-1">Lumen Digital</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              E-mail
-            </label>
+            <label htmlFor="email" className="label-base">E-mail</label>
             <input
               id="email"
               type="email"
@@ -44,15 +49,13 @@ export default function Login() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              className="input-base"
               placeholder="seu@email.com"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Senha
-            </label>
+            <label htmlFor="password" className="label-base">Senha</label>
             <input
               id="password"
               type="password"
@@ -60,23 +63,19 @@ export default function Login() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              className="input-base"
               placeholder="••••••••"
             />
           </div>
 
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition-colors text-sm"
-          >
+          <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
 
-        <p className="text-xs text-gray-400 text-center mt-6">
+        <p className="text-xs text-slate-500 text-center mt-6">
           Admin padrão: admin@lumendigital.com.br / Admin@123456
         </p>
       </div>

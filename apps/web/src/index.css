@@ -8,5 +8,60 @@
   }
   :root {
     --radius: 0.5rem;
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-surface-950 text-slate-200 antialiased;
+  }
+  /* Scrollbars dark */
+  ::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-surface-600;
+  }
+}
+
+@layer components {
+  /* Superfícies */
+  .surface-card {
+    @apply bg-surface-850 border border-surface-700 rounded-xl;
+  }
+
+  /* Inputs */
+  .input-base {
+    @apply w-full px-3 py-2 rounded-lg text-sm bg-surface-800 border border-surface-600 text-slate-100
+      placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/60 focus:border-brand-500 transition-colors;
+  }
+  .label-base {
+    @apply text-xs font-semibold text-slate-400 uppercase tracking-wide block mb-1.5;
+  }
+
+  /* Botões */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 bg-brand-600 hover:bg-brand-500 active:bg-brand-700
+      disabled:opacity-50 disabled:pointer-events-none text-white font-medium px-3.5 py-2 rounded-lg
+      transition-colors shadow-sm;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-surface-700
+      px-3 py-2 rounded-lg transition-colors;
+  }
+  .btn-ai {
+    @apply inline-flex items-center justify-center gap-1.5 font-medium px-3 py-1.5 rounded-lg text-sm
+      bg-ai-600/15 text-ai-400 border border-ai-500/40 hover:bg-ai-600/25 hover:border-ai-500/70
+      disabled:opacity-50 disabled:pointer-events-none transition-colors;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center text-[10px] leading-none px-1.5 py-1 rounded font-medium;
   }
 }

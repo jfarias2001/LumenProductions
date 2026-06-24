@@ -62,6 +62,22 @@ export function useTransitionCard() {
   });
 }
 
+export function useCreateCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => api.post('/cards', data),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['board'] }),
+  });
+}
+
+export function useArchiveCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (cardId: string) => api.post(`/cards/${cardId}/archive`, {}),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['board'] }),
+  });
+}
+
 export type CardDetailData = Record<string, unknown> & {
   stage: Stage;
   title: string;

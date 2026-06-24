@@ -68,4 +68,40 @@
 
 ---
 
+## [2026-06-24] Fase 2 — Camada de IA (OpenAI real) + Redesign dark do board
+
+**Base:** PRD-002 / SPEC-002. Motivação: o usuário relatou que o sistema "estava muito simples, só um Kanban sem interação" e que a IA não funcionava.
+
+### Diagnóstico
+- O board não tinha forma de **criar cards** pela UI (só os do seed) e metade das abas do card estava "em construção" → sensação de tela estática.
+- Todas as rotas `/ai/*` eram **stubs 503** — a camada de IA nunca foi implementada.
+- Bug latente: classes `.input-base`, `.btn-primary`, `.btn-ghost` eram usadas mas **não existiam** no CSS.
+
+### Backend — camada de IA (SPEC-001 §9 implementada)
+- `packages/shared`: novos **schemas Zod de saída** (`AIProspectOutputSchema`, `AIStructureOutputSchema`, `AIValidateOutputSchema`, `AIAnglesOutputSchema`, `AICopyOutputSchema`, `AIRecycleOutputSchema`) + tipos inferidos.
+- `apps/api/src/lib/ai/provider.ts`: `AIProvider` abstrato + `OpenAIProvider` (SDK openai v4, `response_format: json_object` + validação Zod). `getAIProvider()` singleton; `enabled = !!OPENAI_API_KEY`. Erros tipados `AINotConfiguredError` / `AIOutputError`.
+- `apps/api/src/services/ai.service.ts`: 6 funções (`prospect`, `structure`, `validate`, `angles`, `copy`, `recycle`). Cada uma injeta a **Regra de Ouro** (lida do `AppSetting`), trata texto do usuário como **dado** (anti prompt-injection) e registra o ciclo de vida em `AIJob` (status, tokens, custo estimado, resultado).
+- `apps/api/src/routes/ai.ts`: stubs substituídos por handlers reais que **persistem** os resultados (prospect → novos cards em IDEIAS_BRUTAS; structure → patch no card; validate → `Validation` com `aiSuggested=true` e `reviewedById=null`, gate continua exigindo humano; angles → `Angle[]`+`Hook[]`; copy → `Script`+`CopyContent`; recycle → `DerivedAsset[]`). Novo `GET /ai/status`. Sem chave → 503; falha de IA → 502 (card segue editável).
+
+### Frontend — redesign dark SaaS + IA no fluxo
+- **Tema dark**: `tailwind.config.ts` (paletas `brand` índigo, `surface` escuras, `ai` roxo, shadows `glow`/`card`, animações) e `index.css` com classes `@layer components` (`.surface-card`, `.input-base`, `.label-base`, `.btn-primary`, `.btn-ghost`, `.btn-ai`, `.badge`). Corrige o bug das classes inexistentes.
+- **Login** redesenhado (dark, glows, logo gradiente).
+- **Board**: header dark com selo de status da IA, **toolbar** com busca + filtros (pilar/consciência/classe) ligados ao `useUIStore`, botão **+ Novo Card**, destaque da coluna-alvo no drag-over, toast de gate.
+- Novos: `CreateCardModal`, `lib/labels.ts` (rótulos/cores pt-BR de enums), `hooks/useAI.ts` (status + 6 mutations), `hooks/useBoard` ganhou `useCreateCard`/`useArchiveCard`, `components/card/AICopilotButton.tsx` (loading + fallback "IA indisponível").
+- **KanbanColumn/KanbanCard** restilizados (dark, badges coloridos, avatar do responsável, estado vazio).
+- **CardDetail** reformulado: todas as abas antes "em construção" agora funcionam (Copy, Direção, Checklists interativo, Retenção, Agendamento, Reciclagem) e cada etapa relevante tem botão de **copiloto de IA** (Estruturar / Validar / Gerar ângulos & hooks / Gerar roteiro+copy / Gerar derivados). Botão de arquivar no header.
+
+### Estado atual
+- Pipeline + IA funcionando de ponta a ponta: criar card pela UI, mover, e usar IA em cada etapa (basta `OPENAI_API_KEY` no backend; sem ela a UI mostra fallback).
+- Revisão humana preservada: validação por IA entra como sugestão; `PipelineService.canTransition` inalterado.
+- `pnpm -r typecheck` OK nos 3 pacotes; `vite build` do web OK.
+
+### Próximos passos sugeridos
+- Mover chamadas de IA para **jobs BullMQ** assíncronos (hoje são síncronas com `AIJob` de registro).
+- Ação de **Prospecção** na coluna Sinais (seleção múltipla de sinais → `POST /ai/prospect`).
+- Edição inline de Direção/Copy/Agendamento (hoje algumas abas são leitura + IA).
+- Fase 3: dashboards de analytics (mix vs. alvo, ritmo semanal).
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*

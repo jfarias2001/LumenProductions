@@ -1,9 +1,12 @@
-import { useCard } from '../../hooks/useBoard.js';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api.js';
 import { STAGE_LABELS } from '@content-engine/shared';
 import { formatDate } from '../../lib/utils.js';
-import { useState } from 'react';
+import { useCard, useArchiveCard } from '../../hooks/useBoard.js';
+import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle } from '../../hooks/useAI.js';
+import { PILLAR_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS } from '../../lib/labels.js';
+import AICopilotButton from './AICopilotButton.js';
 
 interface Props {
   cardId: string;
@@ -11,28 +14,19 @@ interface Props {
 }
 
 type Tab =
-  | 'template'
-  | 'validacao'
-  | 'angulos'
-  | 'roteiro'
-  | 'direcao'
-  | 'checklists'
-  | 'retencao'
-  | 'copy'
-  | 'agendamento'
-  | 'metricas'
-  | 'reciclagem'
-  | 'atividade';
+  | 'template' | 'validacao' | 'angulos' | 'roteiro' | 'direcao'
+  | 'checklists' | 'retencao' | 'copy' | 'agendamento' | 'metricas'
+  | 'reciclagem' | 'atividade';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'template', label: 'Template' },
   { id: 'validacao', label: 'Validação' },
   { id: 'angulos', label: 'Ângulos & Hooks' },
   { id: 'roteiro', label: 'Roteiro' },
+  { id: 'copy', label: 'Copy' },
   { id: 'direcao', label: 'Direção' },
   { id: 'checklists', label: 'Checklists' },
   { id: 'retencao', label: 'Retenção' },
-  { id: 'copy', label: 'Copy' },
   { id: 'agendamento', label: 'Agendamento' },
   { id: 'metricas', label: 'Métricas' },
   { id: 'reciclagem', label: 'Reciclagem' },
@@ -43,6 +37,7 @@ export default function CardDetail({ cardId, onClose }: Props) {
   const { data: card, isLoading } = useCard(cardId);
   const [activeTab, setActiveTab] = useState<Tab>('template');
   const qc = useQueryClient();
+  const archive = useArchiveCard();
 
   const updateCard = useMutation({
     mutationFn: (data: Record<string, unknown>) => api.patch(`/cards/${cardId}`, data),
@@ -52,50 +47,50 @@ export default function CardDetail({ cardId, onClose }: Props) {
   if (isLoading || !card) {
     return (
       <div className="fixed inset-0 z-40 flex">
-        <div className="fixed inset-0 bg-black/30" onClick={onClose} />
-        <div className="ml-auto w-full max-w-2xl bg-white shadow-xl flex items-center justify-center">
-          <span className="text-gray-400">Carregando…</span>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+        <div className="ml-auto w-full max-w-2xl bg-surface-900 border-l border-surface-700 flex items-center justify-center">
+          <span className="text-slate-500">Carregando…</span>
         </div>
       </div>
     );
   }
 
+  const pillar = card.pillar ? String(card.pillar) : null;
+
   return (
     <div className="fixed inset-0 z-40 flex">
-      <div className="fixed inset-0 bg-black/30" onClick={onClose} />
-      <div className="ml-auto w-full max-w-2xl bg-white shadow-xl flex flex-col overflow-hidden">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="ml-auto w-full max-w-2xl bg-surface-900 border-l border-surface-700 shadow-card flex flex-col overflow-hidden animate-slide-in">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-200 flex items-start justify-between gap-4 shrink-0">
+        <div className="px-5 py-4 border-b border-surface-700 flex items-start justify-between gap-4 shrink-0">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs px-2 py-0.5 bg-brand-50 text-brand-600 rounded-full font-medium">
-                {STAGE_LABELS[card.stage as keyof typeof STAGE_LABELS]}
-              </span>
-              {card.pillar && (
-                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-                  {String(card.pillar).replace(/_/g, ' ')}
-                </span>
-              )}
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span className="badge bg-brand-600/20 text-brand-300">{STAGE_LABELS[card.stage as keyof typeof STAGE_LABELS]}</span>
+              {pillar && <span className={`badge ${PILLAR_BADGE[pillar] ?? 'bg-surface-700 text-slate-400'}`}>{PILLAR_LABELS[pillar] ?? pillar}</span>}
             </div>
-            <h2 className="text-base font-semibold text-gray-900 leading-tight">{card.title}</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h2 className="text-base font-semibold text-white leading-tight">{card.title}</h2>
+            <p className="text-xs text-slate-500 mt-1">
               {card.assignee ? `Responsável: ${card.assignee.name}` : 'Sem responsável'} · Atualizado {formatDate(card.updatedAt)}
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none mt-0.5 shrink-0">×</button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => { if (confirm('Arquivar este card?')) archive.mutate(cardId, { onSuccess: onClose }); }}
+              className="btn-ghost text-xs px-2 py-1.5" title="Arquivar"
+            >🗑</button>
+            <button onClick={onClose} className="btn-ghost text-lg leading-none px-2 py-1">×</button>
+          </div>
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 px-5 overflow-x-auto shrink-0">
+        <div className="border-b border-surface-700 px-3 overflow-x-auto shrink-0">
           <div className="flex gap-0 whitespace-nowrap">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`text-xs font-medium px-3 py-2.5 border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-brand-500 text-brand-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                  activeTab === tab.id ? 'border-brand-500 text-brand-300' : 'border-transparent text-slate-500 hover:text-slate-300'
                 }`}
               >
                 {tab.label}
@@ -106,53 +101,73 @@ export default function CardDetail({ cardId, onClose }: Props) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
-          {activeTab === 'template' && <TemplateTab card={card} onUpdate={(d) => updateCard.mutate(d)} />}
-          {activeTab === 'validacao' && <ValidacaoTab card={card} />}
-          {activeTab === 'angulos' && <AngulosTab card={card} />}
-          {activeTab === 'roteiro' && <RoteiroTab card={card} />}
+          {activeTab === 'template' && <TemplateTab cardId={cardId} card={card} onUpdate={(d) => updateCard.mutate(d)} />}
+          {activeTab === 'validacao' && <ValidacaoTab cardId={cardId} card={card} />}
+          {activeTab === 'angulos' && <AngulosTab cardId={cardId} card={card} />}
+          {activeTab === 'roteiro' && <RoteiroTab cardId={cardId} card={card} />}
+          {activeTab === 'copy' && <CopyTab cardId={cardId} card={card} />}
+          {activeTab === 'direcao' && <DirecaoTab card={card} />}
+          {activeTab === 'checklists' && <ChecklistsTab cardId={cardId} />}
+          {activeTab === 'retencao' && <RetencaoTab card={card} />}
+          {activeTab === 'agendamento' && <AgendamentoTab card={card} />}
           {activeTab === 'metricas' && <MetricasTab card={card} />}
+          {activeTab === 'reciclagem' && <ReciclagemTab cardId={cardId} card={card} />}
           {activeTab === 'atividade' && <AtividadeTab card={card} />}
-          {!['template', 'validacao', 'angulos', 'roteiro', 'metricas', 'atividade'].includes(activeTab) && (
-            <div className="text-sm text-gray-400 text-center py-8">
-              Aba <strong>{TABS.find((t) => t.id === activeTab)?.label}</strong> — em construção.
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ── Tab components ────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
+type Rec = Record<string, unknown>;
 
-function TemplateTab({ card, onUpdate }: { card: Record<string, unknown>; onUpdate: (d: Record<string, unknown>) => void }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="label-base">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-slate-500">{children}</p>;
+}
+
+// ── Template ─────────────────────────────────────────────────────────────────
+function TemplateTab({ cardId, card, onUpdate }: { cardId: string; card: Rec; onUpdate: (d: Rec) => void }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(String(card.title ?? ''));
   const [persona, setPersona] = useState(String(card.persona ?? ''));
   const [pain, setPain] = useState(String(card.pain ?? ''));
+  const [rawText, setRawText] = useState('');
+  const structure = useAIStructure(cardId);
 
   return (
     <div className="space-y-4">
+      {/* IA: estruturar input solto */}
+      <div className="surface-card p-3 space-y-2 bg-surface-850">
+        <p className="text-xs text-slate-400">Cole uma transcrição/nota solta e deixe a IA preencher o template:</p>
+        <textarea className="input-base h-20 resize-none" value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="Ex.: ontem um cliente reclamou que recebe muito lead mas não fecha…" />
+        <button
+          onClick={() => structure.mutate(rawText)}
+          disabled={structure.isPending || rawText.trim().length < 10}
+          className="btn-ai"
+        >
+          {structure.isPending ? <><span className="h-3 w-3 rounded-full border-2 border-ai-400/40 border-t-ai-400 animate-spin" /> Estruturando…</> : '✦ Estruturar com IA'}
+        </button>
+        {structure.isError && <p className="text-[11px] text-amber-300/80">IA indisponível — preencha manualmente.</p>}
+      </div>
+
       <Field label="Título">
-        {editing ? (
-          <input className="input-base" value={title} onChange={(e) => setTitle(e.target.value)} />
-        ) : (
-          <p className="text-sm text-gray-800">{String(card.title)}</p>
-        )}
+        {editing ? <input className="input-base" value={title} onChange={(e) => setTitle(e.target.value)} /> : <p className="text-sm text-slate-200">{String(card.title)}</p>}
       </Field>
       <Field label="Persona">
-        {editing ? (
-          <input className="input-base" value={persona} onChange={(e) => setPersona(e.target.value)} />
-        ) : (
-          <p className="text-sm text-gray-600">{String(card.persona ?? '—')}</p>
-        )}
+        {editing ? <input className="input-base" value={persona} onChange={(e) => setPersona(e.target.value)} /> : <p className="text-sm text-slate-400">{String(card.persona ?? '—')}</p>}
       </Field>
       <Field label="Dor">
-        {editing ? (
-          <textarea className="input-base h-20 resize-none" value={pain} onChange={(e) => setPain(e.target.value)} />
-        ) : (
-          <p className="text-sm text-gray-600 whitespace-pre-wrap">{String(card.pain ?? '—')}</p>
-        )}
+        {editing ? <textarea className="input-base h-20 resize-none" value={pain} onChange={(e) => setPain(e.target.value)} /> : <p className="text-sm text-slate-400 whitespace-pre-wrap">{String(card.pain ?? '—')}</p>}
       </Field>
       <div className="flex gap-2">
         {editing ? (
@@ -161,131 +176,264 @@ function TemplateTab({ card, onUpdate }: { card: Record<string, unknown>; onUpda
             <button className="btn-ghost text-xs" onClick={() => setEditing(false)}>Cancelar</button>
           </>
         ) : (
-          <button className="btn-ghost text-xs" onClick={() => setEditing(true)}>Editar</button>
+          <button className="btn-ghost text-xs" onClick={() => { setTitle(String(card.title ?? '')); setPersona(String(card.persona ?? '')); setPain(String(card.pain ?? '')); setEditing(true); }}>Editar</button>
         )}
       </div>
     </div>
   );
 }
 
-function ValidacaoTab({ card }: { card: Record<string, unknown> }) {
-  const v = card.validation as Record<string, unknown> | null | undefined;
+// ── Validação ────────────────────────────────────────────────────────────────
+function ValidacaoTab({ cardId, card }: { cardId: string; card: Rec }) {
+  const v = card.validation as Rec | null | undefined;
+  const validate = useAIValidate(cardId);
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <AICopilotButton label="Validar com IA" mutation={validate} hint="entra como sugestão; gate exige confirmação humana" />
       {v ? (
         <>
           <div className="flex items-center gap-3">
-            <span className="text-3xl font-bold text-gray-900">{String(v.total)}</span>
-            <span className="text-gray-400">/18</span>
-            <span className={`text-sm font-semibold px-2 py-1 rounded ${
-              v.verdict === 'SEGUIR_ROTEIRO' ? 'bg-green-100 text-green-700' :
-              v.verdict === 'MELHORAR_ANGULO' ? 'bg-amber-100 text-amber-700' :
-              'bg-red-100 text-red-700'
-            }`}>{String(v.verdict).replace(/_/g, ' ')}</span>
+            <span className="text-3xl font-bold text-white">{String(v.total)}</span>
+            <span className="text-slate-500">/18</span>
+            <span className={`badge !text-xs !px-2 !py-1 ${VERDICT_BADGE[String(v.verdict)] ?? 'bg-surface-700 text-slate-400'}`}>{String(v.verdict).replace(/_/g, ' ')}</span>
+            {Boolean(v.aiSuggested) && !v.reviewedById && <span className="badge bg-ai-600/15 text-ai-400 border border-ai-500/40">sugestão IA — revisar</span>}
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs">
             {['dorQuente','clareza','contraste','especificidadeAgencia','potencialComentarios','potencialComercial'].map((k) => (
-              <div key={k} className="bg-gray-50 rounded-lg p-2">
-                <p className="text-gray-500">{k.replace(/([A-Z])/g, ' $1')}</p>
-                <p className="font-bold text-gray-900">{String(v[k] ?? '—')}/3</p>
+              <div key={k} className="surface-card bg-surface-850 p-2.5">
+                <p className="text-slate-500 capitalize">{k.replace(/([A-Z])/g, ' $1')}</p>
+                <p className="font-bold text-slate-100 text-base">{String(v[k] ?? '—')}<span className="text-slate-600 text-xs">/3</span></p>
+                {(v.aiJustifications as Rec)?.[k] ? <p className="text-[10px] text-slate-500 mt-1">{String((v.aiJustifications as Rec)[k])}</p> : null}
               </div>
             ))}
           </div>
         </>
-      ) : (
-        <p className="text-sm text-gray-400">Nenhuma validação registrada.</p>
+      ) : <Empty>Nenhuma validação registrada.</Empty>}
+    </div>
+  );
+}
+
+// ── Ângulos & Hooks ──────────────────────────────────────────────────────────
+function AngulosTab({ cardId, card }: { cardId: string; card: Rec }) {
+  const angles = (card.angles as Rec[]) ?? [];
+  const hooks = (card.hooks as Rec[]) ?? [];
+  const gen = useAIAngles(cardId);
+  return (
+    <div className="space-y-4">
+      <AICopilotButton label="Gerar ângulos & hooks" mutation={gen} />
+      <div>
+        <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Ângulos ({angles.length})</h3>
+        {angles.length ? angles.map((a) => (
+          <div key={String(a.id)} className={`text-sm p-2.5 rounded-lg mb-1.5 border ${a.selected ? 'bg-brand-600/10 border-brand-500/40' : 'bg-surface-850 border-surface-700'}`}>
+            <span className="badge bg-surface-700 text-slate-400 mr-1.5">{ANGLE_LABELS[String(a.type)] ?? String(a.type)}</span>
+            <span className="text-slate-200">{String(a.text)}</span>
+            {Boolean(a.selected) && <span className="ml-2 text-xs text-brand-300">✓</span>}
+          </div>
+        )) : <Empty>Nenhum ângulo.</Empty>}
+      </div>
+      <div>
+        <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Hooks ({hooks.length})</h3>
+        {hooks.length ? hooks.map((h) => (
+          <div key={String(h.id)} className="text-sm p-2.5 bg-surface-850 border border-surface-700 rounded-lg mb-1.5 flex items-center justify-between gap-2">
+            <span className="text-slate-200">{String(h.text)}</span>
+            <span className={`badge shrink-0 ${h.status === 'ESCOLHIDO' ? 'bg-emerald-500/15 text-emerald-300' : h.status === 'DESCARTADO' ? 'bg-rose-500/15 text-rose-300' : 'bg-surface-700 text-slate-400'}`}>{String(h.status)}</span>
+          </div>
+        )) : <Empty>Nenhum hook.</Empty>}
+      </div>
+    </div>
+  );
+}
+
+// ── Roteiro ──────────────────────────────────────────────────────────────────
+function RoteiroTab({ cardId, card }: { cardId: string; card: Rec }) {
+  const s = card.script as Rec | null | undefined;
+  const gen = useAICopy(cardId);
+  return (
+    <div className="space-y-3">
+      <AICopilotButton label="Gerar roteiro + copy" mutation={gen} hint="segue a Regra de Ouro" />
+      {s ? (
+        <div className="space-y-3 text-sm">
+          {(['dor','quebra','mecanismo','beneficio','cta'] as const).map((k) => (
+            <div key={k} className="surface-card bg-surface-850 p-3">
+              <p className="text-xs font-semibold text-brand-300/80 uppercase mb-1">{k}</p>
+              <p className="text-slate-200 whitespace-pre-wrap">{String(s[k] ?? '—')}</p>
+            </div>
+          ))}
+          <p className="text-xs text-slate-500">Duração estimada: {String(s.durationSec)}s</p>
+        </div>
+      ) : <Empty>Roteiro não preenchido.</Empty>}
+    </div>
+  );
+}
+
+// ── Copy ─────────────────────────────────────────────────────────────────────
+function CopyTab({ cardId, card }: { cardId: string; card: Rec }) {
+  const c = card.copy as Rec | null | undefined;
+  const screenTexts = (card.screenTexts as string[]) ?? [];
+  const gen = useAICopy(cardId);
+  return (
+    <div className="space-y-3">
+      <AICopilotButton label="Gerar copy + legenda" mutation={gen} />
+      {c ? (
+        <>
+          <Field label="Legenda">
+            <p className="text-sm text-slate-200 whitespace-pre-wrap surface-card bg-surface-850 p-3">{String(c.caption)}</p>
+          </Field>
+          <Field label="Variações de CTA">
+            <ul className="space-y-1">
+              {((c.ctaVariations as string[]) ?? []).map((cta, i) => (
+                <li key={i} className="text-sm text-slate-300 surface-card bg-surface-850 px-3 py-2">{cta}</li>
+              ))}
+            </ul>
+          </Field>
+        </>
+      ) : <Empty>Copy não gerada.</Empty>}
+      {screenTexts.length > 0 && (
+        <Field label="Textos de tela">
+          <div className="flex flex-wrap gap-1.5">
+            {screenTexts.map((t, i) => <span key={i} className="badge bg-surface-700 text-slate-300">{t}</span>)}
+          </div>
+        </Field>
       )}
     </div>
   );
 }
 
-function AngulosTab({ card }: { card: Record<string, unknown> }) {
-  const angles = (card.angles as Array<Record<string, unknown>>) ?? [];
-  const hooks = (card.hooks as Array<Record<string, unknown>>) ?? [];
+// ── Direção criativa ─────────────────────────────────────────────────────────
+function DirecaoTab({ card }: { card: Rec }) {
+  const c = card.creative as Rec | null | undefined;
+  if (!c) return <Empty>Direção criativa não definida.</Empty>;
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Ângulos ({angles.length})</h3>
-        {angles.length ? angles.map((a) => (
-          <div key={String(a.id)} className={`text-sm p-2 rounded mb-1 ${a.selected ? 'bg-brand-50 border border-brand-200' : 'bg-gray-50'}`}>
-            <span className="text-xs text-gray-400 mr-1">{String(a.type)}</span>{String(a.text)}
-            {Boolean(a.selected) && <span className="ml-2 text-xs text-brand-500">✓ Selecionado</span>}
-          </div>
-        )) : <p className="text-sm text-gray-400">Nenhum ângulo.</p>}
-      </div>
-      <div>
-        <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2">Hooks ({hooks.length})</h3>
-        {hooks.length ? hooks.map((h) => (
-          <div key={String(h.id)} className="text-sm p-2 bg-gray-50 rounded mb-1 flex items-center justify-between">
-            <span>{String(h.text)}</span>
-            <span className={`text-xs px-1.5 py-0.5 rounded ${h.status === 'ESCOLHIDO' ? 'bg-green-100 text-green-700' : h.status === 'DESCARTADO' ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-500'}`}>{String(h.status)}</span>
-          </div>
-        )) : <p className="text-sm text-gray-400">Nenhum hook.</p>}
-      </div>
+    <div className="space-y-3">
+      <Field label="Formato"><span className="badge bg-brand-600/20 text-brand-300">{String(c.format).replace(/_/g, ' ')}</span></Field>
+      {c.visualNotes ? <Field label="Notas visuais"><p className="text-sm text-slate-300 whitespace-pre-wrap">{String(c.visualNotes)}</p></Field> : null}
+      {((c.referenceUrls as string[]) ?? []).length > 0 && (
+        <Field label="Referências">
+          <ul className="space-y-1">
+            {(c.referenceUrls as string[]).map((u, i) => <li key={i}><a href={u} target="_blank" rel="noreferrer" className="text-sm text-brand-300 hover:underline break-all">{u}</a></li>)}
+          </ul>
+        </Field>
+      )}
     </div>
   );
 }
 
-function RoteiroTab({ card }: { card: Record<string, unknown> }) {
-  const s = card.script as Record<string, unknown> | null | undefined;
-  if (!s) return <p className="text-sm text-gray-400">Roteiro não preenchido.</p>;
+// ── Checklists ───────────────────────────────────────────────────────────────
+function ChecklistsTab({ cardId }: { cardId: string }) {
+  const qc = useQueryClient();
+  const { data: items = [], isLoading } = useQuery<Rec[]>({
+    queryKey: ['checklist', cardId],
+    queryFn: () => api.get(`/cards/${cardId}/checklist`),
+  });
+  const toggle = useMutation({
+    mutationFn: (item: Rec) => api.patch(`/cards/${cardId}/checklist`, { items: [{ id: item.id, checked: !item.checked }] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['checklist', cardId] }),
+  });
+
+  if (isLoading) return <Empty>Carregando…</Empty>;
+  if (!items.length) return <Empty>Sem checklist para o estágio atual.</Empty>;
+  return (
+    <ul className="space-y-1.5">
+      {items.map((it) => (
+        <li key={String(it.id)}>
+          <button onClick={() => toggle.mutate(it)} className="w-full flex items-center gap-2.5 text-left surface-card bg-surface-850 px-3 py-2 hover:border-surface-600">
+            <span className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] shrink-0 ${it.checked ? 'bg-brand-600 border-brand-600 text-white' : 'border-surface-500'}`}>{it.checked ? '✓' : ''}</span>
+            <span className={`text-sm ${it.checked ? 'text-slate-500 line-through' : 'text-slate-200'}`}>{String(it.label)}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ── Retenção ─────────────────────────────────────────────────────────────────
+function RetencaoTab({ card }: { card: Rec }) {
+  const r = card.retentionReview as Rec | null | undefined;
+  if (!r) return <Empty>Revisão de retenção não realizada.</Empty>;
+  const answers = (r.answers as Rec[]) ?? [];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className={`badge !text-xs !px-2 !py-1 ${r.passed ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}>{r.passed ? 'Aprovado' : 'Reprovado'}</span>
+        <span className="text-xs text-slate-500">{String(r.badCount)} respostas negativas</span>
+      </div>
+      <ul className="space-y-1.5">
+        {answers.map((a, i) => (
+          <li key={i} className="flex items-center gap-2 text-sm surface-card bg-surface-850 px-3 py-2">
+            <span className={a.good ? 'text-emerald-400' : 'text-rose-400'}>{a.good ? '✓' : '✗'}</span>
+            <span className="text-slate-300">{String(a.question)}</span>
+          </li>
+        ))}
+      </ul>
+      {r.notes ? <Field label="Notas"><p className="text-sm text-slate-400">{String(r.notes)}</p></Field> : null}
+    </div>
+  );
+}
+
+// ── Agendamento ──────────────────────────────────────────────────────────────
+function AgendamentoTab({ card }: { card: Rec }) {
+  const s = card.schedule as Rec | null | undefined;
+  if (!s) return <Empty>Sem agendamento.</Empty>;
   return (
     <div className="space-y-3 text-sm">
-      {(['dor','quebra','mecanismo','beneficio','cta'] as const).map((k) => (
-        <div key={k} className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{k}</p>
-          <p className="text-gray-800 whitespace-pre-wrap">{String(s[k] ?? '—')}</p>
-        </div>
+      {([['Objetivo','objective'],['Público','audience'],['CTA','cta'],['Métrica principal','primaryMetric'],['Hipótese','hypothesis']] as const).map(([label, k]) => (
+        <Field key={k} label={label}><p className="text-slate-300">{String(s[k] ?? '—')}</p></Field>
       ))}
-      <p className="text-xs text-gray-400">Duração estimada: {String(s.durationSec)}s</p>
+      {s.scheduledFor ? <Field label="Agendado para"><p className="text-slate-300">{formatDate(String(s.scheduledFor))}</p></Field> : null}
     </div>
   );
 }
 
-function MetricasTab({ card }: { card: Record<string, unknown> }) {
-  const snaps = (card.metricSnapshots as Array<Record<string, unknown>>) ?? [];
-  if (!snaps.length) return <p className="text-sm text-gray-400">Nenhuma métrica registrada.</p>;
+// ── Métricas ─────────────────────────────────────────────────────────────────
+function MetricasTab({ card }: { card: Rec }) {
+  const snaps = (card.metricSnapshots as Rec[]) ?? [];
+  if (!snaps.length) return <Empty>Nenhuma métrica registrada.</Empty>;
   const latest = snaps[0]!;
   return (
     <div className="grid grid-cols-2 gap-3">
       {[
         ['Retenção', latest.retentionPct != null ? `${String(latest.retentionPct)}%` : null],
-        ['Compartilhamentos', latest.shares],
-        ['Salvamentos', latest.saves],
-        ['Comentários', latest.comments],
-        ['Cliques perfil', latest.profileClicks],
-        ['Directs', latest.directs],
-        ['Novos seguidores', latest.newFollowers],
+        ['Compartilhamentos', latest.shares], ['Salvamentos', latest.saves], ['Comentários', latest.comments],
+        ['Cliques perfil', latest.profileClicks], ['Directs', latest.directs], ['Novos seguidores', latest.newFollowers],
       ].map(([label, val]) => (
-        <div key={String(label)} className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500">{String(label)}</p>
-          <p className="text-lg font-bold text-gray-900">{val != null ? String(val) : '—'}</p>
+        <div key={String(label)} className="surface-card bg-surface-850 p-3">
+          <p className="text-xs text-slate-500">{String(label)}</p>
+          <p className="text-lg font-bold text-white">{val != null ? String(val) : '—'}</p>
         </div>
       ))}
     </div>
   );
 }
 
-function AtividadeTab({ card }: { card: Record<string, unknown> }) {
-  const comments = (card.comments as Array<Record<string, unknown>>) ?? [];
+// ── Reciclagem ───────────────────────────────────────────────────────────────
+function ReciclagemTab({ cardId, card }: { cardId: string; card: Rec }) {
+  const assets = (card.derivedAssets as Rec[]) ?? [];
+  const gen = useAIRecycle(cardId);
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase">Comentários</h3>
-      {comments.length ? comments.map((c) => (
-        <div key={String(c.id)} className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500 mb-1">{String((c.author as Record<string, unknown>)?.name ?? '')} · {formatDate(String(c.createdAt))}</p>
-          <p className="text-sm text-gray-800">{String(c.body)}</p>
+      <AICopilotButton label="Gerar ativos derivados" mutation={gen} hint="carrossel, e-mail, SDR, LinkedIn…" />
+      {assets.length ? assets.map((a) => (
+        <div key={String(a.id)} className="surface-card bg-surface-850 p-3">
+          <span className="badge bg-ai-600/15 text-ai-400 mb-1.5">{DERIVED_LABELS[String(a.type)] ?? String(a.type)}</span>
+          <p className="text-sm text-slate-300 whitespace-pre-wrap">{String(a.content ?? '—')}</p>
         </div>
-      )) : <p className="text-sm text-gray-400">Sem comentários.</p>}
+      )) : <Empty>Nenhum ativo derivado.</Empty>}
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+// ── Atividade ────────────────────────────────────────────────────────────────
+function AtividadeTab({ card }: { card: Rec }) {
+  const comments = (card.comments as Rec[]) ?? [];
   return (
-    <div>
-      <label className="text-xs font-semibold text-gray-500 uppercase block mb-1">{label}</label>
-      {children}
+    <div className="space-y-3">
+      <h3 className="text-xs font-semibold text-slate-500 uppercase">Comentários</h3>
+      {comments.length ? comments.map((c) => (
+        <div key={String(c.id)} className="surface-card bg-surface-850 p-3">
+          <p className="text-xs text-slate-500 mb-1">{String((c.author as Rec)?.name ?? '')} · {formatDate(String(c.createdAt))}</p>
+          <p className="text-sm text-slate-200">{String(c.body)}</p>
+        </div>
+      )) : <Empty>Sem comentários.</Empty>}
     </div>
   );
 }
