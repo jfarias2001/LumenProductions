@@ -62,20 +62,29 @@ services:
       - api
     networks:
       - internal
-      - proxy
+      - traefik
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=proxy"
-      - "traefik.http.routers.lumenproductions-web.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.lumenproductions-web.entrypoints=websecure"
-      - "traefik.http.routers.lumenproductions-web.tls.certresolver=leresolver"
-      - "traefik.http.services.lumenproductions-web.loadbalancer.server.port=80"
+      - "traefik.docker.network=traefik_default"
+      # HTTP -> redireciona para HTTPS
+      - "traefik.http.routers.lumenproductions-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.lumenproductions-http.entrypoints=web"
+      - "traefik.http.routers.lumenproductions-http.middlewares=lumenproductions-https-redirect"
+      - "traefik.http.middlewares.lumenproductions-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.lumenproductions-https-redirect.redirectscheme.permanent=true"
+      # HTTPS com TLS via leresolver (Let's Encrypt)
+      - "traefik.http.routers.lumenproductions.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.lumenproductions.entrypoints=websecure"
+      - "traefik.http.routers.lumenproductions.tls=true"
+      - "traefik.http.routers.lumenproductions.tls.certresolver=leresolver"
+      - "traefik.http.services.lumenproductions.loadbalancer.server.port=80"
 
 networks:
   internal:
     driver: bridge
-  proxy:
+  traefik:
+    name: traefik_default
     external: true
 
 volumes:
