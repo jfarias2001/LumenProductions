@@ -104,4 +104,43 @@
 
 ---
 
+## [2026-06-24] Fase 3 — Copiloto conversacional por fase
+
+**Base:** PRD-003 / SPEC-003. Motivação: a IA era um conjunto de **6 botões one-shot** (1 clique = 1 chamada → JSON nos campos). O usuário queria o oposto: **conversar com a IA ao longo da pipeline**, com prompts padrão por fase, construindo o material incrementalmente até um entregável final.
+
+### Decisões (travadas com o usuário)
+- **Thread por fase** (uma conversa por `card+stage`), com prompt padrão da fase carregado como sugestão.
+- **Pipeline mantido** — as 18 etapas e os gates (`PipelineService.canTransition`) continuam intactos; muda a casca (chat) e a validação por IA segue como sugestão (humano no gate).
+- **Entregável adaptado ao tipo** — card declara VÍDEO (roteiro + hooks + insights de edição) ou ESTÁTICO (copy + elementos gráficos/slides + paleta).
+
+### Shared (`packages/shared`)
+- Enum `ContentType` (VIDEO|ESTATICO); `CONVERSATIONAL_STAGES` + `isConversationalStage`; mapa `STAGE_GOAL` (objetivo da IA por fase).
+- `contentType` em `CreateCardSchema`/`UpdateCardSchema`; novos schemas `AIDirectionOutputSchema`, `ConversationMessageInputSchema`, `ConsolidateInputSchema`, `CreatePromptTemplateSchema`/`Update…` + tipos inferidos.
+
+### Backend (`apps/api`)
+- **Prisma**: enum `ContentType`; `Card.contentType`; modelos `AIConversation` (única por `cardId+stage`), `AIMessage`, `PromptTemplate`; campos `editingInsights`/`graphicElements`/`palette`/`aiGenerated` em `CreativeDirection`. Migration `20260624000000_conversational_copilot` (additiva).
+- **Provider**: novo método `chat()` com **streaming** (SSE via `stream: true` + `stream_options.include_usage`) além do `generateStructured` existente.
+- **`ConversationService`**: `getOrCreate`, `buildSystemPrompt` (Regra de Ouro + objetivo da fase + contexto do card + entregáveis das fases anteriores, tudo como DADO), `sendMessage` (persiste user/assistant, registra `AIJob`), `transcript`.
+- **`ai.service`**: funções existentes ganham parâmetro opcional `conversation`; nova `direction()` (adapta-se ao tipo); orquestrador **`consolidateStage(cardId, stage)`** que reusa structure/validate/angles/copy/direction/recycle a partir da transcrição e persiste nas entidades reais. Validação consolidada entra `aiSuggested=true` sem `reviewedById`.
+- **`DeliverableService`**: `assemble(cardId)` monta o pacote por tipo + `toMarkdown` para export.
+- **Rotas `conversations.ts`**: `GET/POST .../conversations/:stage` (POST = **SSE**), `.../consolidate`, `GET /cards/:id/deliverable(?format=md)`, CRUD `/prompt-templates` (escrita sob nova permissão `managePrompts` = ADMIN/GESTOR). SSE usa `reply.hijack()`.
+- **Seed**: 12 `PromptTemplate` `builtIn` cobrindo as fases criativas.
+
+### Frontend (`apps/web`)
+- Hooks: `useConversation` (histórico + `useSendMessage` que consome o stream SSE via `fetch`+`ReadableStream` atualizando o texto em tempo real + `useConsolidate`), `usePromptTemplates`, `useDeliverable`.
+- Componentes: `PhaseChat` (seletor de fase, chips de prompts padrão, bolhas user/IA, streaming, botão Consolidar, fallback "IA indisponível") e `FinalPackageView` (pacote por tipo + copiar Markdown).
+- `CardDetail`: novas abas **✦ Copiloto IA** (default) e **📦 Pacote**; badge de tipo de conteúdo no header; aba Direção mostra insights de edição / elementos gráficos / paleta.
+- `CreateCardModal`: seletor VÍDEO/ESTÁTICO. `labels.ts`: `CONTENT_TYPE_LABELS`.
+
+### Estado atual
+- Conversa por fase funcionando de ponta a ponta com streaming; consolidação grava nos campos do card; pacote final por tipo exportável. Sem `OPENAI_API_KEY` → fallback claro.
+- `pnpm -r typecheck` OK nos 3 pacotes; `vite build` do web OK. Migration criada (aplicar com `prisma migrate deploy` + `db:seed` quando o Postgres estiver disponível).
+
+### Próximos passos sugeridos
+- Aplicar a migration no ambiente (Docker/Postgres) e rodar o seed.
+- UI de **Configurações → Prompts** (CRUD já existe no backend).
+- Mover chat para jobs/observabilidade assíncrona; permitir editar inline o entregável consolidado.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*

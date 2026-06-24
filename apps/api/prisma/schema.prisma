@@ -118,6 +118,11 @@ enum ValidationVerdict {
   SEGUIR_ROTEIRO
 }
 
+enum ContentType {
+  VIDEO
+  ESTATICO
+}
+
 // ── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -136,6 +141,7 @@ model User {
 model Card {
   id             String         @id @default(cuid())
   stage          Stage          @default(SINAIS_MERCADO)
+  contentType    ContentType    @default(VIDEO)
   title          String
   persona        String?
   pain           String?
@@ -172,6 +178,7 @@ model Card {
   comments       Comment[]
   activityLogs   ActivityLog[]
   aiJobs         AIJob[]
+  conversations  AIConversation[]
   archivedAt     DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -241,14 +248,18 @@ model Script {
 }
 
 model CreativeDirection {
-  id            String         @id @default(cuid())
-  cardId        String         @unique
-  card          Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  format        CreativeFormat
-  visualNotes   String?
-  referenceUrls String[]       @default([])
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id              String         @id @default(cuid())
+  cardId          String         @unique
+  card            Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  format          CreativeFormat
+  visualNotes     String?
+  referenceUrls   String[]       @default([])
+  editingInsights String[]       @default([]) // VÍDEO: cortes, ritmo, b-roll, legendas, trilha
+  graphicElements Json?                        // ESTÁTICO: [{ slide, headline, body, visual }]
+  palette         String?                      // ESTÁTICO: paleta/estilo sugerido
+  aiGenerated     Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 model CopyContent {
@@ -408,6 +419,48 @@ model AppSetting {
   weeklyTargets    Json
   goldenRulePrompt String
   updatedAt        DateTime @updatedAt
+}
+
+// ── Copiloto conversacional por fase (PRD-003 / SPEC-003) ─────────────────────
+
+model AIConversation {
+  id        String      @id @default(cuid())
+  cardId    String
+  card      Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  stage     Stage
+  messages  AIMessage[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([cardId, stage])
+  @@index([cardId])
+}
+
+model AIMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // 'user' | 'assistant'
+  content        String
+  authorId       String?
+  aiJobId        String?
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId])
+}
+
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  stage     Stage
+  title     String
+  body      String
+  isDefault Boolean  @default(false)
+  order     Int      @default(0)
+  builtIn   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stage])
 }
 
 model RefreshToken {

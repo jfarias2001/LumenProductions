@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Pillar, SignalSource, Stage, STAGE_LABELS } from '@content-engine/shared';
+import { ContentType, Pillar, SignalSource, Stage, STAGE_LABELS } from '@content-engine/shared';
 import { useCreateCard } from '../../hooks/useBoard.js';
-import { PILLAR_LABELS, SIGNAL_LABELS } from '../../lib/labels.js';
+import { PILLAR_LABELS, SIGNAL_LABELS, CONTENT_TYPE_LABELS } from '../../lib/labels.js';
 
 interface Props {
   onClose: () => void;
@@ -13,6 +13,7 @@ export default function CreateCardModal({ onClose }: Props) {
   const create = useCreateCard();
   const [title, setTitle] = useState('');
   const [stage, setStage] = useState<Stage>(Stage.SINAIS_MERCADO);
+  const [contentType, setContentType] = useState<ContentType>(ContentType.VIDEO);
   const [pillar, setPillar] = useState<string>('');
   const [signalSource, setSignalSource] = useState<string>('');
   const [signalContent, setSignalContent] = useState('');
@@ -27,6 +28,7 @@ export default function CreateCardModal({ onClose }: Props) {
       await create.mutateAsync({
         title: title.trim(),
         stage,
+        contentType,
         ...(pillar ? { pillar } : {}),
         ...(isSignal && signalSource ? { signalSource } : {}),
         ...(isSignal && signalContent ? { signalContent } : {}),
@@ -50,6 +52,24 @@ export default function CreateCardModal({ onClose }: Props) {
           <div>
             <label className="label-base">Título</label>
             <input className="input-base" value={title} onChange={(e) => setTitle(e.target.value)} required minLength={3} placeholder="Ex.: Dono de agência reclamando de lead ruim" autoFocus />
+          </div>
+
+          <div>
+            <label className="label-base">Tipo de conteúdo</label>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.values(ContentType).map((t) => (
+                <button
+                  type="button"
+                  key={t}
+                  onClick={() => setContentType(t)}
+                  className={`text-sm rounded-lg border px-3 py-2 transition-colors ${
+                    contentType === t ? 'border-brand-500 bg-brand-600/15 text-brand-200' : 'border-surface-700 text-slate-400 hover:border-surface-600'
+                  }`}
+                >
+                  {CONTENT_TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -144,3 +144,48 @@ export enum AIJobStatus {
   SUCCEEDED = 'succeeded',
   FAILED = 'failed',
 }
+
+// Tipo de conteúdo do card — define o formato do entregável final (PRD-003)
+export enum ContentType {
+  VIDEO = 'VIDEO',
+  ESTATICO = 'ESTATICO',
+}
+
+/**
+ * Fases criativas que têm conversa com a IA (PRD-003 §5.1).
+ * As demais etapas (gravação, agendamento, distribuição, análise) não abrem chat.
+ */
+export const CONVERSATIONAL_STAGES: Stage[] = [
+  Stage.IDEIAS_BRUTAS,
+  Stage.IDEIAS_VALIDADAS,
+  Stage.ANGULO_DEFINIDO,
+  Stage.HOOKS_EM_TESTE,
+  Stage.ROTEIRO,
+  Stage.DIRECAO_CRIATIVA,
+  Stage.COPY_LEGENDA_CTA,
+  Stage.ESCALAR_RECICLAR,
+];
+
+export function isConversationalStage(stage: Stage): boolean {
+  return CONVERSATIONAL_STAGES.includes(stage);
+}
+
+/** Papel/objetivo da IA em cada fase — injetado no system prompt da conversa (SPEC-003 §2.2). */
+export const STAGE_GOAL: Partial<Record<Stage, string>> = {
+  [Stage.IDEIAS_BRUTAS]:
+    'Ajude a lapidar a ideia bruta: clarear a dor central, a persona (dono de agência) e a promessa. Sugira ângulos iniciais e ajude a definir título, pilar e nível de consciência.',
+  [Stage.IDEIAS_VALIDADAS]:
+    'Avalie criticamente o potencial da ideia (dor quente, clareza, contraste, especificidade de agência, potencial de comentários e comercial). Aponte fraquezas e como fortalecer antes de seguir.',
+  [Stage.ANGULO_DEFINIDO]:
+    'Explore ângulos narrativos (dor, culpa transferida, oportunidade, medo, autoridade). Ajude a escolher o ângulo mais forte para a persona.',
+  [Stage.HOOKS_EM_TESTE]:
+    'Gere e refine hooks de abertura (primeiros 2 segundos). Busque variações que parem o scroll e entrem direto na dor.',
+  [Stage.ROTEIRO]:
+    'Escreva e refine o roteiro de 30–45s seguindo dor → quebra de crença → mecanismo → benefício → CTA. Itere conforme o pedido (encurtar, intensificar, trocar CTA).',
+  [Stage.DIRECAO_CRIATIVA]:
+    'Defina a direção criativa. Para VÍDEO: cortes, ritmo, b-roll, textos de tela, trilha. Para ESTÁTICO: estrutura de slides/post, elementos visuais por slide, paleta e hierarquia.',
+  [Stage.COPY_LEGENDA_CTA]:
+    'Escreva e refine a legenda e variações de CTA para a peça, mantendo a Regra de Ouro e o tom para dono de agência.',
+  [Stage.ESCALAR_RECICLAR]:
+    'Transforme a peça vencedora em ativos derivados (carrossel, e-mail, SDR, LinkedIn, novos hooks, cortes). Adapte a mensagem a cada canal.',
+};

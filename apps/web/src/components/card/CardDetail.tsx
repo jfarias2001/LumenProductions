@@ -5,8 +5,11 @@ import { STAGE_LABELS } from '@content-engine/shared';
 import { formatDate } from '../../lib/utils.js';
 import { useCard, useArchiveCard } from '../../hooks/useBoard.js';
 import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle } from '../../hooks/useAI.js';
-import { PILLAR_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS } from '../../lib/labels.js';
+import { PILLAR_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS } from '../../lib/labels.js';
 import AICopilotButton from './AICopilotButton.js';
+import PhaseChat from './PhaseChat.js';
+import FinalPackageView from './FinalPackageView.js';
+import type { Stage } from '@content-engine/shared';
 
 interface Props {
   cardId: string;
@@ -14,11 +17,14 @@ interface Props {
 }
 
 type Tab =
+  | 'copiloto' | 'pacote'
   | 'template' | 'validacao' | 'angulos' | 'roteiro' | 'direcao'
   | 'checklists' | 'retencao' | 'copy' | 'agendamento' | 'metricas'
   | 'reciclagem' | 'atividade';
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'copiloto', label: '✦ Copiloto IA' },
+  { id: 'pacote', label: '📦 Pacote' },
   { id: 'template', label: 'Template' },
   { id: 'validacao', label: 'Validação' },
   { id: 'angulos', label: 'Ângulos & Hooks' },
@@ -35,7 +41,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function CardDetail({ cardId, onClose }: Props) {
   const { data: card, isLoading } = useCard(cardId);
-  const [activeTab, setActiveTab] = useState<Tab>('template');
+  const [activeTab, setActiveTab] = useState<Tab>('copiloto');
   const qc = useQueryClient();
   const archive = useArchiveCard();
 
@@ -66,6 +72,7 @@ export default function CardDetail({ cardId, onClose }: Props) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="badge bg-brand-600/20 text-brand-300">{STAGE_LABELS[card.stage as keyof typeof STAGE_LABELS]}</span>
+              {card.contentType ? <span className="badge bg-ai-600/15 text-ai-400 border border-ai-500/30">{CONTENT_TYPE_LABELS[String(card.contentType)] ?? String(card.contentType)}</span> : null}
               {pillar && <span className={`badge ${PILLAR_BADGE[pillar] ?? 'bg-surface-700 text-slate-400'}`}>{PILLAR_LABELS[pillar] ?? pillar}</span>}
             </div>
             <h2 className="text-base font-semibold text-white leading-tight">{card.title}</h2>
@@ -100,7 +107,9 @@ export default function CardDetail({ cardId, onClose }: Props) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className={`flex-1 min-h-0 p-5 ${activeTab === 'copiloto' ? 'flex flex-col' : 'overflow-y-auto'}`}>
+          {activeTab === 'copiloto' && <PhaseChat cardId={cardId} currentStage={card.stage as Stage} />}
+          {activeTab === 'pacote' && <FinalPackageView cardId={cardId} />}
           {activeTab === 'template' && <TemplateTab cardId={cardId} card={card} onUpdate={(d) => updateCard.mutate(d)} />}
           {activeTab === 'validacao' && <ValidacaoTab cardId={cardId} card={card} />}
           {activeTab === 'angulos' && <AngulosTab cardId={cardId} card={card} />}
@@ -302,10 +311,32 @@ function CopyTab({ cardId, card }: { cardId: string; card: Rec }) {
 // ── Direção criativa ─────────────────────────────────────────────────────────
 function DirecaoTab({ card }: { card: Rec }) {
   const c = card.creative as Rec | null | undefined;
-  if (!c) return <Empty>Direção criativa não definida.</Empty>;
+  if (!c) return <Empty>Direção criativa não definida. Use o Copiloto IA na fase "Direção Criativa".</Empty>;
+  const editing = (c.editingInsights as string[]) ?? [];
+  const graphics = (c.graphicElements as Rec[]) ?? [];
   return (
     <div className="space-y-3">
       <Field label="Formato"><span className="badge bg-brand-600/20 text-brand-300">{String(c.format).replace(/_/g, ' ')}</span></Field>
+      {editing.length > 0 && (
+        <Field label="Insights de edição (vídeo)">
+          <ul className="list-disc list-inside space-y-1 text-sm text-slate-300">{editing.map((t, i) => <li key={i}>{t}</li>)}</ul>
+        </Field>
+      )}
+      {graphics.length > 0 && (
+        <Field label="Elementos gráficos (estático)">
+          <div className="space-y-2">
+            {graphics.map((g, i) => (
+              <div key={i} className="surface-card bg-surface-850 p-2.5">
+                <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-0.5">Slide {String(g.slide ?? i + 1)}</p>
+                {g.headline ? <p className="text-sm text-slate-100 font-medium">{String(g.headline)}</p> : null}
+                {g.body ? <p className="text-sm text-slate-300 whitespace-pre-wrap">{String(g.body)}</p> : null}
+                {g.visual ? <p className="text-xs text-slate-500 mt-0.5">Visual: {String(g.visual)}</p> : null}
+              </div>
+            ))}
+          </div>
+        </Field>
+      )}
+      {c.palette ? <Field label="Paleta"><p className="text-sm text-slate-300 whitespace-pre-wrap">{String(c.palette)}</p></Field> : null}
       {c.visualNotes ? <Field label="Notas visuais"><p className="text-sm text-slate-300 whitespace-pre-wrap">{String(c.visualNotes)}</p></Field> : null}
       {((c.referenceUrls as string[]) ?? []).length > 0 && (
         <Field label="Referências">

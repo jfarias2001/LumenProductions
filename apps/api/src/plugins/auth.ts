@@ -23,6 +23,7 @@ export const PERMISSIONS = {
   schedulePublish: [Role.ADMIN, Role.GESTOR, Role.ESTRATEGISTA],
   enterMetrics: [Role.ADMIN, Role.GESTOR, Role.ESTRATEGISTA],
   useAI: [Role.ADMIN, Role.GESTOR, Role.ESTRATEGISTA, Role.ROTEIRISTA, Role.EDITOR, Role.REVISOR_RETENCAO],
+  managePrompts: [Role.ADMIN, Role.GESTOR],
 } as const satisfies Record<string, Role[]>;
 
 export type Permission = keyof typeof PERMISSIONS;

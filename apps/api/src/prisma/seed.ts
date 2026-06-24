@@ -116,6 +116,31 @@ async function main() {
     }
   }
 
+  // Prompt templates por fase (PRD-003 §5.2) — sugestões padrão da conversa.
+  const prompts: { stage: Stage; title: string; body: string; isDefault?: boolean }[] = [
+    { stage: Stage.IDEIAS_BRUTAS, title: 'Lapidar a ideia', isDefault: true, body: 'Com base no que temos, me ajude a clarear a dor central, a persona (dono de agência) e a promessa. Sugira 3 títulos possíveis e qual pilar e nível de consciência fazem mais sentido.' },
+    { stage: Stage.IDEIAS_BRUTAS, title: 'Explorar variações', body: 'Liste 5 variações de abordagem para essa ideia, cada uma entrando por uma dor diferente do dono de agência.' },
+    { stage: Stage.IDEIAS_VALIDADAS, title: 'Avaliar potencial', isDefault: true, body: 'Avalie criticamente essa ideia em dor quente, clareza, contraste, especificidade de agência, potencial de comentários e potencial comercial (nota 0–3 cada). Aponte a maior fraqueza e como corrigir.' },
+    { stage: Stage.ANGULO_DEFINIDO, title: 'Gerar ângulos', isDefault: true, body: 'Proponha de 3 a 5 ângulos narrativos (dor, culpa transferida, oportunidade, medo, autoridade) para essa ideia e recomende o mais forte para a persona, justificando.' },
+    { stage: Stage.HOOKS_EM_TESTE, title: 'Gerar hooks', isDefault: true, body: 'Escreva 10 hooks de abertura (primeiros 2 segundos) que parem o scroll e entrem direto na dor. Varie estilo: pergunta, afirmação polêmica, número, cenário.' },
+    { stage: Stage.HOOKS_EM_TESTE, title: 'Refinar hook', body: 'Pegue o melhor hook e gere 5 variações mais curtas e mais agressivas, mantendo a clareza.' },
+    { stage: Stage.ROTEIRO, title: 'Escrever roteiro', isDefault: true, body: 'Escreva o roteiro completo de 30–45s seguindo dor → quebra de crença → mecanismo → benefício → CTA, no tom direto para dono de agência. Inclua textos de tela curtos.' },
+    { stage: Stage.ROTEIRO, title: 'Encurtar mantendo a quebra', body: 'Encurte o roteiro para caber em ~30s sem perder a quebra de crença. Marque o que cortar.' },
+    { stage: Stage.DIRECAO_CRIATIVA, title: 'Direção de vídeo', isDefault: true, body: 'Liste a direção de edição: cortes, ritmo, b-roll, textos de tela e sugestão de trilha. Indique o formato mais adequado.' },
+    { stage: Stage.DIRECAO_CRIATIVA, title: 'Estrutura de carrossel', body: 'Estruture um carrossel: defina o conteúdo de cada slide (título, texto e elemento visual), a paleta e a hierarquia visual.' },
+    { stage: Stage.COPY_LEGENDA_CTA, title: 'Escrever legenda + CTAs', isDefault: true, body: 'Escreva a legenda para a peça (gancho na primeira linha, corpo e fechamento) e 3 variações de CTA, mantendo a Regra de Ouro.' },
+    { stage: Stage.ESCALAR_RECICLAR, title: 'Gerar derivados', isDefault: true, body: 'Transforme essa peça vencedora em ativos derivados (carrossel, e-mail, script de SDR, post de LinkedIn, novos hooks). Adapte a mensagem a cada canal.' },
+  ];
+
+  for (const p of prompts) {
+    const exists = await prisma.promptTemplate.findFirst({ where: { stage: p.stage, title: p.title, builtIn: true } });
+    if (!exists) {
+      await prisma.promptTemplate.create({
+        data: { stage: p.stage, title: p.title, body: p.body, isDefault: p.isDefault ?? false, builtIn: true },
+      });
+    }
+  }
+
   console.log('✅  Seed concluído.');
 }
 

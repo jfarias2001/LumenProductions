@@ -3,6 +3,7 @@ import {
   AwarenessLevel,
   AngleType,
   ContentClass,
+  ContentType,
   CreativeFormat,
   DerivedAssetType,
   HookStatus,
@@ -44,6 +45,7 @@ export const UpdateUserSchema = CreateUserSchema.partial().omit({ password: true
 export const CreateCardSchema = z.object({
   title: z.string().min(3).max(300),
   stage: z.nativeEnum(Stage).default(Stage.SINAIS_MERCADO),
+  contentType: z.nativeEnum(ContentType).default(ContentType.VIDEO),
   signalSource: z.nativeEnum(SignalSource).optional(),
   signalContent: z.string().max(2000).optional(),
   signalLink: z.string().url().optional(),
@@ -54,6 +56,7 @@ export const CreateCardSchema = z.object({
 
 export const UpdateCardSchema = z.object({
   title: z.string().min(3).max(300).optional(),
+  contentType: z.nativeEnum(ContentType).optional(),
   persona: z.string().max(500).optional(),
   pain: z.string().max(1000).optional(),
   promise: z.string().max(500).optional(),
@@ -358,6 +361,49 @@ export const AIRecycleOutputSchema = z.object({
     .min(1),
 });
 
+/** Direção criativa consolidada (PRD-003) — adapta-se ao tipo de conteúdo. */
+export const AIDirectionOutputSchema = z.object({
+  format: z.nativeEnum(CreativeFormat),
+  visualNotes: z.string().optional().default(''),
+  /** VÍDEO: cortes, ritmo, b-roll, textos de tela, trilha. */
+  editingInsights: z.array(z.string()).default([]),
+  /** ESTÁTICO: estrutura de slides/post. */
+  graphicElements: z
+    .array(
+      z.object({
+        slide: z.union([z.number(), z.string()]).optional(),
+        headline: z.string().optional().default(''),
+        body: z.string().optional().default(''),
+        visual: z.string().optional().default(''),
+      }),
+    )
+    .default([]),
+  palette: z.string().optional().default(''),
+});
+
+// ── Conversa por fase (PRD-003 / SPEC-003) ─────────────────────────────────────
+
+export const ConversationMessageInputSchema = z.object({
+  content: z.string().min(1).max(8000),
+});
+
+export const ConsolidateInputSchema = z.object({
+  /** Opcional: força um estágio específico; default = estágio da conversa. */
+  stage: z.nativeEnum(Stage).optional(),
+});
+
+// ── Prompt templates por fase (PRD-003 §5.2) ───────────────────────────────────
+
+export const CreatePromptTemplateSchema = z.object({
+  stage: z.nativeEnum(Stage),
+  title: z.string().min(2).max(120),
+  body: z.string().min(2).max(4000),
+  isDefault: z.boolean().optional(),
+  order: z.number().int().min(0).optional(),
+});
+
+export const UpdatePromptTemplateSchema = CreatePromptTemplateSchema.partial().omit({ stage: true });
+
 // ── Inferred types ────────────────────────────────────────────────────────────
 
 export type LoginInput = z.infer<typeof LoginSchema>;
@@ -385,3 +431,8 @@ export type AIValidateOutput = z.infer<typeof AIValidateOutputSchema>;
 export type AIAnglesOutput = z.infer<typeof AIAnglesOutputSchema>;
 export type AICopyOutput = z.infer<typeof AICopyOutputSchema>;
 export type AIRecycleOutput = z.infer<typeof AIRecycleOutputSchema>;
+export type AIDirectionOutput = z.infer<typeof AIDirectionOutputSchema>;
+export type ConversationMessageInput = z.infer<typeof ConversationMessageInputSchema>;
+export type ConsolidateInput = z.infer<typeof ConsolidateInputSchema>;
+export type CreatePromptTemplateInput = z.infer<typeof CreatePromptTemplateSchema>;
+export type UpdatePromptTemplateInput = z.infer<typeof UpdatePromptTemplateSchema>;

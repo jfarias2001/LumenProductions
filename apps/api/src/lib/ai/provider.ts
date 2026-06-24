@@ -21,9 +21,24 @@ export interface GenerateStructuredArgs<T> {
   temperature?: number;
 }
 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatArgs {
+  messages: ChatMessage[];
+  model?: string;
+  temperature?: number;
+  /** Se presente, ativa streaming e é chamado a cada pedaço de texto. */
+  onToken?: (delta: string) => void;
+}
+
 export interface AIProvider {
   readonly enabled: boolean;
   generateStructured<T>(args: GenerateStructuredArgs<T>): Promise<{ data: T; usage: TokenUsage; model: string }>;
+  /** Chat em texto livre (PRD-003). Com `onToken`, transmite por streaming. */
+  chat(args: ChatArgs): Promise<{ text: string; usage: TokenUsage; model: string }>;
 }
 
 export class AINotConfiguredError extends Error {
@@ -88,6 +103,52 @@ class OpenAIProvider implements AIProvider {
       },
       model: usedModel,
     };
+  }
+
+  async chat({ messages, model, temperature = 0.6, onToken }: ChatArgs): Promise<{ text: string; usage: TokenUsage; model: string }> {
+    if (!this.client) throw new AINotConfiguredError();
+    const usedModel = model ?? config.aiDefaultModel;
+
+    // ── Sem streaming ──────────────────────────────────────────────────────────
+    if (!onToken) {
+      const completion = await this.client.chat.completions.create({
+        model: usedModel,
+        temperature,
+        messages,
+      });
+      return {
+        text: completion.choices[0]?.message?.content ?? '',
+        usage: {
+          inputTokens: completion.usage?.prompt_tokens ?? 0,
+          outputTokens: completion.usage?.completion_tokens ?? 0,
+        },
+        model: usedModel,
+      };
+    }
+
+    // ── Streaming ────────────────────────────────────────────────────────────────
+    const stream = await this.client.chat.completions.create({
+      model: usedModel,
+      temperature,
+      messages,
+      stream: true,
+      stream_options: { include_usage: true },
+    });
+
+    let text = '';
+    const usage: TokenUsage = { inputTokens: 0, outputTokens: 0 };
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) {
+        text += delta;
+        onToken(delta);
+      }
+      if (chunk.usage) {
+        usage.inputTokens = chunk.usage.prompt_tokens ?? usage.inputTokens;
+        usage.outputTokens = chunk.usage.completion_tokens ?? usage.outputTokens;
+      }
+    }
+    return { text, usage, model: usedModel };
   }
 }
 

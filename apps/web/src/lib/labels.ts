@@ -1,5 +1,10 @@
 /** Rótulos e classes de cor (tema dark) para enums de domínio. */
-import { Pillar, AwarenessLevel, ContentClass, ValidationVerdict, SignalSource, AngleType, DerivedAssetType } from '@content-engine/shared';
+import { Pillar, AwarenessLevel, ContentClass, ContentType, ValidationVerdict, SignalSource, AngleType, DerivedAssetType } from '@content-engine/shared';
+
+export const CONTENT_TYPE_LABELS: Record<string, string> = {
+  [ContentType.VIDEO]: 'Vídeo (Reel)',
+  [ContentType.ESTATICO]: 'Estático (post/carrossel)',
+};
 
 export const PILLAR_LABELS: Record<string, string> = {
   [Pillar.DOR_DONO_AGENCIA]: 'Dor do dono',
