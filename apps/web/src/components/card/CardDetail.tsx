@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api.js';
-import { STAGE_LABELS, STAGE_ORDER, Stage, SignalSource, AwarenessLevel, Pillar, ContentClass } from '@content-engine/shared';
+import { STAGE_LABELS, STAGE_ORDER, Stage, SignalSource, AwarenessLevel, Pillar, ContentClass, AngleType, HookStatus, CreativeFormat, RETENTION_QUESTIONS, MIN_HOOKS_TO_ADVANCE, SCRIPT_DURATION } from '@content-engine/shared';
 import { formatDate } from '../../lib/utils.js';
 import { useCard, useArchiveCard, useTransitionCard, useConfirmValidation } from '../../hooks/useBoard.js';
 import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle } from '../../hooks/useAI.js';
-import { PILLAR_LABELS, AWARENESS_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS, CLASS_BADGE } from '../../lib/labels.js';
+import { PILLAR_LABELS, AWARENESS_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS, CLASS_BADGE, FORMAT_LABELS } from '../../lib/labels.js';
 import AICopilotButton from './AICopilotButton.js';
 import PhaseChat from './PhaseChat.js';
 import FinalPackageView from './FinalPackageView.js';
@@ -211,6 +211,15 @@ function AdvanceBar({ cardId, stage }: { cardId: string; stage: Stage }) {
 // ── Roteador de painel por etapa ──────────────────────────────────────────────
 type Rec = Record<string, unknown>;
 
+/** Invalida card + board após qualquer ação que altera o card. */
+function useCardInvalidate(cardId: string) {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: ['card', cardId] });
+    void qc.invalidateQueries({ queryKey: ['board'] });
+  };
+}
+
 function StagePanel({ stage, cardId, card, onUpdate }: { stage: Stage; cardId: string; card: Rec; onUpdate: (d: Rec) => void }) {
   const copiloto = <PhaseChat cardId={cardId} currentStage={stage} embedded />;
   switch (stage) {
@@ -226,7 +235,7 @@ function StagePanel({ stage, cardId, card, onUpdate }: { stage: Stage; cardId: s
     case Stage.ROTEIRO:
       return <div className="space-y-5">{copiloto}<RoteiroTab cardId={cardId} card={card} /></div>;
     case Stage.DIRECAO_CRIATIVA:
-      return <div className="space-y-5">{copiloto}<DirecaoTab card={card} /></div>;
+      return <div className="space-y-5">{copiloto}<DirecaoTab cardId={cardId} card={card} /></div>;
     case Stage.PRONTO_PARA_GRAVAR:
       return <ChecklistsTab cardId={cardId} />;
     case Stage.GRAVADO:
@@ -234,16 +243,16 @@ function StagePanel({ stage, cardId, card, onUpdate }: { stage: Stage; cardId: s
     case Stage.EM_EDICAO:
       return <div className="space-y-5"><MediaTab card={card} onUpdate={onUpdate} field="editedVideoUrl" label="Link do vídeo editado" /><ChecklistsTab cardId={cardId} /></div>;
     case Stage.REVISAO_RETENCAO:
-      return <RetencaoTab card={card} />;
+      return <RetencaoTab cardId={cardId} card={card} />;
     case Stage.COPY_LEGENDA_CTA:
       return <div className="space-y-5">{copiloto}<CopyTab cardId={cardId} card={card} /></div>;
     case Stage.AGENDADO:
     case Stage.PUBLICADO:
-      return <AgendamentoTab card={card} />;
+      return <AgendamentoTab cardId={cardId} card={card} />;
     case Stage.EM_DISTRIBUICAO:
       return <ChecklistsTab cardId={cardId} />;
     case Stage.ANALISE:
-      return <div className="space-y-5"><MetricasTab card={card} /><ContentClassField card={card} onUpdate={onUpdate} /></div>;
+      return <div className="space-y-5"><MetricasTab cardId={cardId} card={card} /><ContentClassField card={card} onUpdate={onUpdate} /></div>;
     case Stage.ESCALAR_RECICLAR:
       return <div className="space-y-5">{copiloto}<ReciclagemTab cardId={cardId} card={card} /></div>;
     case Stage.ARQUIVADO:
@@ -466,42 +475,167 @@ function AngulosTab({ cardId, card }: { cardId: string; card: Rec }) {
   const angles = (card.angles as Rec[]) ?? [];
   const hooks = (card.hooks as Rec[]) ?? [];
   const gen = useAIAngles(cardId);
+  const invalidate = useCardInvalidate(cardId);
+
+  const selectAngle = useMutation({
+    mutationFn: ({ id, selected }: { id: string; selected: boolean }) => api.patch(`/cards/${cardId}/angles/${id}`, { selected }),
+    onSuccess: invalidate,
+  });
+  const setHookStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => api.patch(`/cards/${cardId}/hooks/${id}`, { status }),
+    onSuccess: invalidate,
+  });
+  const addAngle = useMutation({
+    mutationFn: (data: { type: string; text: string }) => api.post(`/cards/${cardId}/angles`, data),
+    onSuccess: invalidate,
+  });
+  const addHook = useMutation({
+    mutationFn: (text: string) => api.post(`/cards/${cardId}/hooks`, { text }),
+    onSuccess: invalidate,
+  });
+
+  const [angleText, setAngleText] = useState('');
+  const [angleType, setAngleType] = useState<string>(AngleType.DOR);
+  const [hookText, setHookText] = useState('');
+
+  const selectedAngles = angles.filter((a) => a.selected).length;
+  const chosenHooks = hooks.filter((h) => h.status === 'ESCOLHIDO').length;
+
   return (
     <div className="space-y-4">
       <AICopilotButton label="Gerar ângulos & hooks" mutation={gen} />
+
+      {/* Ângulos */}
       <div>
-        <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Ângulos ({angles.length})</h3>
+        <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">
+          Ângulos ({angles.length}) · <span className={selectedAngles ? 'text-emerald-400' : 'text-amber-400'}>{selectedAngles} selecionado(s)</span>
+        </h3>
+        <p className="text-[11px] text-slate-500 mb-2">Clique em um ângulo para selecioná-lo (gate exige ao menos 1).</p>
         {angles.length ? angles.map((a) => (
-          <div key={String(a.id)} className={`text-sm p-2.5 rounded-lg mb-1.5 border ${a.selected ? 'bg-brand-600/10 border-brand-500/40' : 'bg-surface-850 border-surface-700'}`}>
+          <button
+            key={String(a.id)}
+            type="button"
+            onClick={() => selectAngle.mutate({ id: String(a.id), selected: !a.selected })}
+            disabled={selectAngle.isPending}
+            className={`w-full text-left text-sm p-2.5 rounded-lg mb-1.5 border transition-colors ${a.selected ? 'bg-brand-600/10 border-brand-500/40' : 'bg-surface-850 border-surface-700 hover:border-surface-600'}`}
+          >
             <span className="badge bg-surface-700 text-slate-400 mr-1.5">{ANGLE_LABELS[String(a.type)] ?? String(a.type)}</span>
             <span className="text-slate-200">{String(a.text)}</span>
-            {Boolean(a.selected) && <span className="ml-2 text-xs text-brand-300">✓</span>}
-          </div>
+            <span className={`ml-2 text-xs ${a.selected ? 'text-brand-300' : 'text-slate-600'}`}>{a.selected ? '✓ selecionado' : 'selecionar'}</span>
+          </button>
         )) : <Empty>Nenhum ângulo.</Empty>}
+        <div className="flex gap-1.5 mt-2">
+          <select className="input-base !w-auto text-xs" value={angleType} onChange={(e) => setAngleType(e.target.value)}>
+            {Object.values(AngleType).map((t) => <option key={t} value={t}>{ANGLE_LABELS[t] ?? t}</option>)}
+          </select>
+          <input className="input-base flex-1 text-xs" value={angleText} onChange={(e) => setAngleText(e.target.value)} placeholder="Adicionar ângulo manualmente (mín. 5 caracteres)…" />
+          <button
+            type="button"
+            className="btn-ghost text-xs shrink-0"
+            disabled={angleText.trim().length < 5 || addAngle.isPending}
+            onClick={() => addAngle.mutate({ type: angleType, text: angleText.trim() }, { onSuccess: () => setAngleText('') })}
+          >+ Add</button>
+        </div>
       </div>
+
+      {/* Hooks */}
       <div>
-        <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">Hooks ({hooks.length})</h3>
-        {hooks.length ? hooks.map((h) => (
-          <div key={String(h.id)} className="text-sm p-2.5 bg-surface-850 border border-surface-700 rounded-lg mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-slate-200">{String(h.text)}</span>
-            <span className={`badge shrink-0 ${h.status === 'ESCOLHIDO' ? 'bg-emerald-500/15 text-emerald-300' : h.status === 'DESCARTADO' ? 'bg-rose-500/15 text-rose-300' : 'bg-surface-700 text-slate-400'}`}>{String(h.status)}</span>
-          </div>
-        )) : <Empty>Nenhum hook.</Empty>}
+        <h3 className="text-xs font-semibold text-slate-500 uppercase mb-2">
+          Hooks (<span className={hooks.length >= MIN_HOOKS_TO_ADVANCE ? 'text-emerald-400' : 'text-amber-400'}>{hooks.length}/{MIN_HOOKS_TO_ADVANCE} mín</span>) · <span className={chosenHooks ? 'text-emerald-400' : 'text-amber-400'}>{chosenHooks} escolhido</span>
+        </h3>
+        {hooks.length ? hooks.map((h) => {
+          const status = String(h.status);
+          return (
+            <div key={String(h.id)} className="text-sm p-2.5 bg-surface-850 border border-surface-700 rounded-lg mb-1.5 flex items-center justify-between gap-2">
+              <span className={`flex-1 ${status === 'DESCARTADO' ? 'text-slate-500 line-through' : 'text-slate-200'}`}>{String(h.text)}</span>
+              <div className="flex gap-1 shrink-0">
+                <button
+                  type="button"
+                  title="Marcar como escolhido"
+                  onClick={() => setHookStatus.mutate({ id: String(h.id), status: status === 'ESCOLHIDO' ? HookStatus.EM_TESTE : HookStatus.ESCOLHIDO })}
+                  className={`badge ${status === 'ESCOLHIDO' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-surface-700 text-slate-400 hover:text-emerald-300'}`}
+                >✓ escolher</button>
+                <button
+                  type="button"
+                  title="Descartar"
+                  onClick={() => setHookStatus.mutate({ id: String(h.id), status: status === 'DESCARTADO' ? HookStatus.EM_TESTE : HookStatus.DESCARTADO })}
+                  className={`badge ${status === 'DESCARTADO' ? 'bg-rose-500/20 text-rose-300' : 'bg-surface-700 text-slate-400 hover:text-rose-300'}`}
+                >✗</button>
+              </div>
+            </div>
+          );
+        }) : <Empty>Nenhum hook.</Empty>}
+        <div className="flex gap-1.5 mt-2">
+          <input className="input-base flex-1 text-xs" value={hookText} onChange={(e) => setHookText(e.target.value)} placeholder="Adicionar hook manualmente (mín. 5 caracteres)…" />
+          <button
+            type="button"
+            className="btn-ghost text-xs shrink-0"
+            disabled={hookText.trim().length < 5 || addHook.isPending}
+            onClick={() => addHook.mutate(hookText.trim(), { onSuccess: () => setHookText('') })}
+          >+ Add</button>
+        </div>
       </div>
     </div>
   );
 }
 
 // ── Roteiro ──────────────────────────────────────────────────────────────────
+const SCRIPT_SECTIONS = ['dor', 'quebra', 'mecanismo', 'beneficio', 'cta'] as const;
 function RoteiroTab({ cardId, card }: { cardId: string; card: Rec }) {
   const s = card.script as Rec | null | undefined;
   const gen = useAICopy(cardId);
+  const invalidate = useCardInvalidate(cardId);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [duration, setDuration] = useState(String(s?.durationSec ?? 40));
+
+  const save = useMutation({
+    mutationFn: () => api.put(`/cards/${cardId}/script`, {
+      dor: form.dor ?? '', quebra: form.quebra ?? '', mecanismo: form.mecanismo ?? '',
+      beneficio: form.beneficio ?? '', cta: form.cta ?? '', durationSec: Number(duration),
+    }),
+    onSuccess: () => { invalidate(); setEditing(false); },
+  });
+
+  function startEdit() {
+    const init: Record<string, string> = {};
+    for (const k of SCRIPT_SECTIONS) init[k] = String(s?.[k] ?? '');
+    setForm(init);
+    setDuration(String(s?.durationSec ?? 40));
+    setEditing(true);
+  }
+
+  const durNum = Number(duration);
+  const durOk = durNum >= SCRIPT_DURATION.MIN_SEC && durNum <= SCRIPT_DURATION.MAX_SEC;
+  const sectionsOk = SCRIPT_SECTIONS.every((k) => (form[k] ?? '').trim().length >= (k === 'cta' ? 5 : 10));
+
+  if (editing) {
+    return (
+      <div className="space-y-3">
+        {SCRIPT_SECTIONS.map((k) => (
+          <Field key={k} label={k === 'cta' ? 'CTA (mín. 5)' : `${k} (mín. 10 caracteres)`}>
+            <textarea className="input-base h-20 resize-none" value={form[k] ?? ''} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+          </Field>
+        ))}
+        <Field label={`Duração (segundos) — entre ${SCRIPT_DURATION.MIN_SEC} e ${SCRIPT_DURATION.MAX_SEC}`}>
+          <input type="number" className="input-base" value={duration} onChange={(e) => setDuration(e.target.value)} />
+          {!durOk && <p className="text-[11px] text-amber-300/90 mt-1">Duração deve ficar entre {SCRIPT_DURATION.MIN_SEC} e {SCRIPT_DURATION.MAX_SEC}s.</p>}
+        </Field>
+        <div className="flex gap-2">
+          <button className="btn-primary text-xs" disabled={!durOk || !sectionsOk || save.isPending} onClick={() => save.mutate()}>{save.isPending ? 'Salvando…' : 'Salvar roteiro'}</button>
+          <button className="btn-ghost text-xs" onClick={() => setEditing(false)}>Cancelar</button>
+        </div>
+        {save.isError && <p className="text-[11px] text-rose-400">Falha ao salvar. Verifique os campos.</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <AICopilotButton label="Gerar roteiro + copy" mutation={gen} hint="segue a Regra de Ouro" />
       {s ? (
         <div className="space-y-3 text-sm">
-          {(['dor','quebra','mecanismo','beneficio','cta'] as const).map((k) => (
+          {SCRIPT_SECTIONS.map((k) => (
             <div key={k} className="surface-card bg-surface-850 p-3">
               <p className="text-xs font-semibold text-brand-300/80 uppercase mb-1">{k}</p>
               <p className="text-slate-200 whitespace-pre-wrap">{String(s[k] ?? '—')}</p>
@@ -510,6 +644,7 @@ function RoteiroTab({ cardId, card }: { cardId: string; card: Rec }) {
           <p className="text-xs text-slate-500">Duração estimada: {String(s.durationSec)}s</p>
         </div>
       ) : <Empty>Roteiro não preenchido.</Empty>}
+      <button className="btn-ghost text-xs" onClick={startEdit}>{s ? 'Editar roteiro' : 'Escrever roteiro manualmente'}</button>
     </div>
   );
 }
@@ -519,6 +654,46 @@ function CopyTab({ cardId, card }: { cardId: string; card: Rec }) {
   const c = card.copy as Rec | null | undefined;
   const screenTexts = (card.screenTexts as string[]) ?? [];
   const gen = useAICopy(cardId);
+  const invalidate = useCardInvalidate(cardId);
+  const [editing, setEditing] = useState(false);
+  const [caption, setCaption] = useState('');
+  const [ctas, setCtas] = useState('');
+
+  const save = useMutation({
+    mutationFn: () => api.put(`/cards/${cardId}/copy`, {
+      caption: caption.trim(),
+      ctaVariations: ctas.split('\n').map((l) => l.trim()).filter(Boolean),
+    }),
+    onSuccess: () => { invalidate(); setEditing(false); },
+  });
+
+  function startEdit() {
+    setCaption(String(c?.caption ?? ''));
+    setCtas(((c?.ctaVariations as string[]) ?? []).join('\n'));
+    setEditing(true);
+  }
+
+  const ctaList = ctas.split('\n').map((l) => l.trim()).filter(Boolean);
+  const valid = caption.trim().length >= 10 && ctaList.length >= 1;
+
+  if (editing) {
+    return (
+      <div className="space-y-3">
+        <Field label="Legenda (mín. 10 caracteres)">
+          <textarea className="input-base h-28 resize-none" value={caption} onChange={(e) => setCaption(e.target.value)} />
+        </Field>
+        <Field label="Variações de CTA (uma por linha, mín. 1)">
+          <textarea className="input-base h-20 resize-none" value={ctas} onChange={(e) => setCtas(e.target.value)} placeholder={'Comente "EU QUERO"\nChama no direct\nLink na bio'} />
+        </Field>
+        <div className="flex gap-2">
+          <button className="btn-primary text-xs" disabled={!valid || save.isPending} onClick={() => save.mutate()}>{save.isPending ? 'Salvando…' : 'Salvar copy'}</button>
+          <button className="btn-ghost text-xs" onClick={() => setEditing(false)}>Cancelar</button>
+        </div>
+        {save.isError && <p className="text-[11px] text-rose-400">Falha ao salvar.</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
       <AICopilotButton label="Gerar copy + legenda" mutation={gen} />
@@ -536,6 +711,7 @@ function CopyTab({ cardId, card }: { cardId: string; card: Rec }) {
           </Field>
         </>
       ) : <Empty>Copy não gerada.</Empty>}
+      <button className="btn-ghost text-xs" onClick={startEdit}>{c ? 'Editar copy' : 'Escrever copy manualmente'}</button>
       {screenTexts.length > 0 && (
         <Field label="Textos de tela">
           <div className="flex flex-wrap gap-1.5">
@@ -548,9 +724,53 @@ function CopyTab({ cardId, card }: { cardId: string; card: Rec }) {
 }
 
 // ── Direção criativa ─────────────────────────────────────────────────────────
-function DirecaoTab({ card }: { card: Rec }) {
+function DirecaoTab({ cardId, card }: { cardId: string; card: Rec }) {
   const c = card.creative as Rec | null | undefined;
-  if (!c) return <Empty>Direção criativa não definida. Use o Copiloto IA acima.</Empty>;
+  const invalidate = useCardInvalidate(cardId);
+  const [open, setOpen] = useState(false);
+  const [format, setFormat] = useState<string>(String(c?.format ?? ''));
+  const [notes, setNotes] = useState(String(c?.visualNotes ?? ''));
+
+  const save = useMutation({
+    mutationFn: () => api.put(`/cards/${cardId}/creative`, { format, ...(notes.trim() ? { visualNotes: notes.trim() } : {}) }),
+    onSuccess: () => { invalidate(); setOpen(false); },
+  });
+
+  function startEdit() {
+    setFormat(String(c?.format ?? ''));
+    setNotes(String(c?.visualNotes ?? ''));
+    setOpen(true);
+  }
+
+  if (open) {
+    return (
+      <div className="space-y-3">
+        <Field label="Formato (obrigatório para avançar)">
+          <select className="input-base" value={format} onChange={(e) => setFormat(e.target.value)}>
+            <option value="">—</option>
+            {Object.values(CreativeFormat).map((f) => <option key={f} value={f}>{FORMAT_LABELS[f] ?? f}</option>)}
+          </select>
+        </Field>
+        <Field label="Notas visuais (opcional)">
+          <textarea className="input-base h-24 resize-none" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Paleta, ritmo de cortes, referências…" />
+        </Field>
+        <div className="flex gap-2">
+          <button className="btn-primary text-xs" disabled={!format || save.isPending} onClick={() => save.mutate()}>{save.isPending ? 'Salvando…' : 'Salvar direção'}</button>
+          <button className="btn-ghost text-xs" onClick={() => setOpen(false)}>Cancelar</button>
+        </div>
+        {save.isError && <p className="text-[11px] text-rose-400">Falha ao salvar.</p>}
+      </div>
+    );
+  }
+
+  if (!c) {
+    return (
+      <div className="space-y-3">
+        <Empty>Direção criativa não definida. Use o Copiloto IA acima ou defina manualmente.</Empty>
+        <button className="btn-ghost text-xs" onClick={startEdit}>Definir formato manualmente</button>
+      </div>
+    );
+  }
   const editing = (c.editingInsights as string[]) ?? [];
   const graphics = (c.graphicElements as Rec[]) ?? [];
   return (
@@ -584,6 +804,7 @@ function DirecaoTab({ card }: { card: Rec }) {
           </ul>
         </Field>
       )}
+      <button className="btn-ghost text-xs" onClick={startEdit}>Editar direção</button>
     </div>
   );
 }
@@ -617,10 +838,55 @@ function ChecklistsTab({ cardId }: { cardId: string }) {
 }
 
 // ── Retenção ─────────────────────────────────────────────────────────────────
-function RetencaoTab({ card }: { card: Rec }) {
+function RetencaoTab({ cardId, card }: { cardId: string; card: Rec }) {
   const r = card.retentionReview as Rec | null | undefined;
-  if (!r) return <Empty>Revisão de retenção não realizada.</Empty>;
-  const answers = (r.answers as Rec[]) ?? [];
+  const invalidate = useCardInvalidate(cardId);
+  const existingAnswers = (r?.answers as Rec[]) ?? [];
+
+  // Estado inicial: respostas existentes ou todas as perguntas padrão como "boas".
+  const [answers, setAnswers] = useState<{ question: string; good: boolean }[]>(() =>
+    existingAnswers.length
+      ? existingAnswers.map((a) => ({ question: String(a.question), good: Boolean(a.good) }))
+      : RETENTION_QUESTIONS.map((q) => ({ question: q, good: true })),
+  );
+  const [notes, setNotes] = useState(String(r?.notes ?? ''));
+  const [open, setOpen] = useState(!r);
+
+  const submit = useMutation({
+    mutationFn: () => api.put(`/cards/${cardId}/retention-review`, { answers, ...(notes.trim() ? { notes: notes.trim() } : {}) }),
+    onSuccess: () => { invalidate(); setOpen(false); },
+  });
+
+  const badCount = answers.filter((a) => !a.good).length;
+  const willPass = badCount < 3;
+
+  if (open) {
+    return (
+      <div className="space-y-3">
+        <p className="text-xs text-slate-400">Marque cada critério. Reprova com 3 ou mais respostas negativas — nesse caso o card volta para edição.</p>
+        <ul className="space-y-1.5">
+          {answers.map((a, i) => (
+            <li key={i} className="flex items-center justify-between gap-2 text-sm surface-card bg-surface-850 px-3 py-2">
+              <span className="text-slate-200 flex-1">{a.question}</span>
+              <div className="flex gap-1 shrink-0">
+                <button type="button" onClick={() => setAnswers((arr) => arr.map((x, j) => j === i ? { ...x, good: true } : x))} className={`badge ${a.good ? 'bg-emerald-500/20 text-emerald-300' : 'bg-surface-700 text-slate-400'}`}>✓ bom</button>
+                <button type="button" onClick={() => setAnswers((arr) => arr.map((x, j) => j === i ? { ...x, good: false } : x))} className={`badge ${!a.good ? 'bg-rose-500/20 text-rose-300' : 'bg-surface-700 text-slate-400'}`}>✗ ruim</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <Field label="Notas (opcional)"><textarea className="input-base h-16 resize-none" value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+        <p className={`text-xs ${willPass ? 'text-emerald-400' : 'text-rose-400'}`}>{badCount} negativa(s) → {willPass ? 'Aprova' : 'Reprova (volta para edição)'}</p>
+        <div className="flex gap-2">
+          <button className="btn-primary text-xs" disabled={submit.isPending} onClick={() => submit.mutate()}>{submit.isPending ? 'Salvando…' : 'Salvar revisão'}</button>
+          {r && <button className="btn-ghost text-xs" onClick={() => setOpen(false)}>Cancelar</button>}
+        </div>
+        {submit.isError && <p className="text-[11px] text-rose-400">Falha ao salvar revisão.</p>}
+      </div>
+    );
+  }
+
+  if (!r) return <Empty>Carregando…</Empty>;
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -628,7 +894,7 @@ function RetencaoTab({ card }: { card: Rec }) {
         <span className="text-xs text-slate-500">{String(r.badCount)} respostas negativas</span>
       </div>
       <ul className="space-y-1.5">
-        {answers.map((a, i) => (
+        {existingAnswers.map((a, i) => (
           <li key={i} className="flex items-center gap-2 text-sm surface-card bg-surface-850 px-3 py-2">
             <span className={a.good ? 'text-emerald-400' : 'text-rose-400'}>{a.good ? '✓' : '✗'}</span>
             <span className="text-slate-300">{String(a.question)}</span>
@@ -636,41 +902,133 @@ function RetencaoTab({ card }: { card: Rec }) {
         ))}
       </ul>
       {r.notes ? <Field label="Notas"><p className="text-sm text-slate-400">{String(r.notes)}</p></Field> : null}
+      <button className="btn-ghost text-xs" onClick={() => setOpen(true)}>Refazer revisão</button>
     </div>
   );
 }
 
 // ── Agendamento ──────────────────────────────────────────────────────────────
-function AgendamentoTab({ card }: { card: Rec }) {
+const SCHEDULE_FIELDS = [
+  ['Objetivo', 'objective'], ['Público', 'audience'], ['CTA', 'cta'],
+  ['Métrica principal', 'primaryMetric'], ['Hipótese', 'hypothesis'],
+] as const;
+
+/** Date → string para <input type="datetime-local"> no fuso local. */
+function toLocalInput(iso?: string): string {
+  const d = iso ? new Date(iso) : new Date();
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 16);
+}
+
+function AgendamentoTab({ cardId, card }: { cardId: string; card: Rec }) {
   const s = card.schedule as Rec | null | undefined;
-  if (!s) return <Empty>Sem agendamento.</Empty>;
+  const invalidate = useCardInvalidate(cardId);
+  const [open, setOpen] = useState(!s);
+  const [form, setForm] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const [, k] of SCHEDULE_FIELDS) init[k] = String(s?.[k] ?? '');
+    return init;
+  });
+  const [when, setWhen] = useState(toLocalInput(s?.scheduledFor ? String(s.scheduledFor) : undefined));
+
+  const save = useMutation({
+    mutationFn: () => api.put(`/cards/${cardId}/schedule`, {
+      objective: form.objective, audience: form.audience, cta: form.cta,
+      primaryMetric: form.primaryMetric, hypothesis: form.hypothesis,
+      scheduledFor: new Date(when).toISOString(),
+    }),
+    onSuccess: () => { invalidate(); setOpen(false); },
+  });
+
+  const valid = SCHEDULE_FIELDS.every(([, k]) => (form[k] ?? '').trim().length >= 5) && !!when;
+
+  if (open) {
+    return (
+      <div className="space-y-3">
+        {SCHEDULE_FIELDS.map(([label, k]) => (
+          <Field key={k} label={`${label} (mín. 5 caracteres)`}>
+            <input className="input-base" value={form[k] ?? ''} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+          </Field>
+        ))}
+        <Field label="Agendar para">
+          <input type="datetime-local" className="input-base" value={when} onChange={(e) => setWhen(e.target.value)} />
+        </Field>
+        <div className="flex gap-2">
+          <button className="btn-primary text-xs" disabled={!valid || save.isPending} onClick={() => save.mutate()}>{save.isPending ? 'Salvando…' : 'Salvar agendamento'}</button>
+          {s && <button className="btn-ghost text-xs" onClick={() => setOpen(false)}>Cancelar</button>}
+        </div>
+        {save.isError && <p className="text-[11px] text-rose-400">Falha ao salvar.</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 text-sm">
-      {([['Objetivo','objective'],['Público','audience'],['CTA','cta'],['Métrica principal','primaryMetric'],['Hipótese','hypothesis']] as const).map(([label, k]) => (
-        <Field key={k} label={label}><p className="text-slate-300">{String(s[k] ?? '—')}</p></Field>
+      {SCHEDULE_FIELDS.map(([label, k]) => (
+        <Field key={k} label={label}><p className="text-slate-300">{String(s?.[k] ?? '—')}</p></Field>
       ))}
-      {s.scheduledFor ? <Field label="Agendado para"><p className="text-slate-300">{formatDate(String(s.scheduledFor))}</p></Field> : null}
+      {s?.scheduledFor ? <Field label="Agendado para"><p className="text-slate-300">{formatDate(String(s.scheduledFor))}</p></Field> : null}
+      <button className="btn-ghost text-xs" onClick={() => setOpen(true)}>Editar agendamento</button>
     </div>
   );
 }
 
 // ── Métricas ─────────────────────────────────────────────────────────────────
-function MetricasTab({ card }: { card: Rec }) {
+const METRIC_FIELDS = [
+  ['Retenção (%)', 'retentionPct'], ['Compartilhamentos', 'shares'], ['Salvamentos', 'saves'],
+  ['Comentários', 'comments'], ['Cliques perfil', 'profileClicks'], ['Directs', 'directs'], ['Novos seguidores', 'newFollowers'],
+] as const;
+
+function MetricasTab({ cardId, card }: { cardId: string; card: Rec }) {
   const snaps = (card.metricSnapshots as Rec[]) ?? [];
-  if (!snaps.length) return <Empty>Nenhuma métrica registrada.</Empty>;
-  const latest = snaps[0]!;
+  const invalidate = useCardInvalidate(cardId);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<Record<string, string>>({});
+
+  const add = useMutation({
+    mutationFn: () => {
+      const payload: Record<string, number> = {};
+      for (const [, k] of METRIC_FIELDS) {
+        const raw = form[k];
+        if (raw != null && raw !== '') payload[k] = Number(raw);
+      }
+      return api.post(`/cards/${cardId}/metrics`, payload);
+    },
+    onSuccess: () => { invalidate(); setForm({}); setOpen(false); },
+  });
+
+  const latest = snaps[0];
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {[
-        ['Retenção', latest.retentionPct != null ? `${String(latest.retentionPct)}%` : null],
-        ['Compartilhamentos', latest.shares], ['Salvamentos', latest.saves], ['Comentários', latest.comments],
-        ['Cliques perfil', latest.profileClicks], ['Directs', latest.directs], ['Novos seguidores', latest.newFollowers],
-      ].map(([label, val]) => (
-        <div key={String(label)} className="surface-card bg-surface-850 p-3">
-          <p className="text-xs text-slate-500">{String(label)}</p>
-          <p className="text-lg font-bold text-white">{val != null ? String(val) : '—'}</p>
+    <div className="space-y-3">
+      {latest ? (
+        <div className="grid grid-cols-2 gap-3">
+          {METRIC_FIELDS.map(([label, k]) => (
+            <div key={k} className="surface-card bg-surface-850 p-3">
+              <p className="text-xs text-slate-500">{label}</p>
+              <p className="text-lg font-bold text-white">{latest[k] != null ? String(latest[k]) : '—'}</p>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : <Empty>Nenhuma métrica registrada.</Empty>}
+
+      {open ? (
+        <div className="surface-card bg-surface-850 p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            {METRIC_FIELDS.map(([label, k]) => (
+              <Field key={k} label={label}>
+                <input type="number" className="input-base" value={form[k] ?? ''} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+              </Field>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-primary text-xs" disabled={add.isPending} onClick={() => add.mutate()}>{add.isPending ? 'Salvando…' : 'Salvar snapshot'}</button>
+            <button className="btn-ghost text-xs" onClick={() => setOpen(false)}>Cancelar</button>
+          </div>
+          {add.isError && <p className="text-[11px] text-rose-400">Falha ao salvar.</p>}
+        </div>
+      ) : (
+        <button className="btn-ghost text-xs" onClick={() => setOpen(true)}>+ Registrar métricas</button>
+      )}
     </div>
   );
 }

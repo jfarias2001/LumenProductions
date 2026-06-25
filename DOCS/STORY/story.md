@@ -281,4 +281,23 @@ O `CardDetail` renderizava **as 14 abas ao mesmo tempo**, independentemente do e
 
 ---
 
+## [2026-06-25] Fix: controles interativos faltantes em todas as etapas do pipeline
+
+**Problema:** vários gates do `PipelineService` exigiam ações humanas que a UI só *exibia*, sem permitir executar — travando o avanço. Auditoria de todas as etapas vs. endpoints (todos já existiam no backend).
+
+**Correções no `CardDetail.tsx` (frontend apenas):**
+- **Ângulos** (`AngulosTab`): clique seleciona/desseleciona ângulo (PATCH selected); adicionar ângulo manual.
+- **Hooks** (`AngulosTab`): botões Escolher/Descartar (PATCH status); adicionar hook manual; contador X/5 mín e nº escolhidos.
+- **Roteiro** (`RoteiroTab`): edição manual das 5 seções + duração (30–45s), PUT script.
+- **Direção criativa** (`DirecaoTab`): seleção manual de formato (obrigatório) + notas, PUT creative.
+- **Copy** (`CopyTab`): edição manual de legenda + variações de CTA, PUT copy.
+- **Revisão de retenção** (`RetencaoTab`): formulário com `RETENTION_QUESTIONS` (bom/ruim) + notas, PUT retention-review; reprova ⇒ volta para edição (lógica do backend).
+- **Agendamento** (`AgendamentoTab`): formulário completo + datetime-local → ISO, PUT schedule.
+- **Métricas** (`MetricasTab`): formulário para registrar snapshot, POST metrics.
+- Helper `useCardInvalidate` para invalidar card+board após cada ação.
+
+Etapas com gate de checklist (PRONTO_PARA_GRAVAR, EM_EDICAO, EM_DISTRIBUICAO) já funcionavam via `ChecklistsTab` + templates do seed. `tsc --noEmit` OK no web.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
