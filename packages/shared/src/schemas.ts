@@ -420,49 +420,79 @@ export const AIRecycleOutputSchema = z.object({
     .min(1),
 });
 
+/**
+ * Normaliza qualquer valor que a IA devolva (string, número, array ou objeto)
+ * em texto legível. A IA frequentemente retorna estrutura onde esperamos texto
+ * (ex.: palette como {primary, secondary} ou colors como array) — em vez de
+ * falhar a validação, achatamos para uma frase.
+ */
+function looseStringify(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return v.map(looseStringify).filter(Boolean).join(', ');
+  if (typeof v === 'object') {
+    return Object.entries(v as Record<string, unknown>)
+      .map(([k, val]) => {
+        const s = looseStringify(val);
+        return s ? `${k}: ${s}` : '';
+      })
+      .filter(Boolean)
+      .join('; ');
+  }
+  return String(v);
+}
+
+/** Campo de texto tolerante: coage objeto/array/número da IA para string. */
+const LooseString = z.preprocess(looseStringify, z.string());
+
+/** Array tolerante: aceita um valor único da IA e o embrulha em lista. */
+const looseArray = <T extends z.ZodTypeAny>(item: T) =>
+  z.preprocess((v) => (v == null ? [] : Array.isArray(v) ? v : [v]), z.array(item));
+
 /** Tipografia sugerida para a peça (fonte de título/corpo + observações). */
 export const TypographySchema = z.object({
-  headingFont: z.string().optional().default(''),
-  bodyFont: z.string().optional().default(''),
-  notes: z.string().optional().default(''),
+  headingFont: LooseString.default(''),
+  bodyFont: LooseString.default(''),
+  notes: LooseString.default(''),
 });
 
 /** ESTÁTICO: cada slide/elemento com disposição na tela, fonte, tamanho e cores. */
 export const GraphicElementSchema = z.object({
   slide: z.union([z.number(), z.string()]).optional(),
-  headline: z.string().optional().default(''),
-  body: z.string().optional().default(''),
-  visual: z.string().optional().default(''),
+  headline: LooseString.default(''),
+  body: LooseString.default(''),
+  visual: LooseString.default(''),
   /** Como dispor os elementos na tela (ex.: "título no topo centralizado, imagem ao fundo"). */
-  layout: z.string().optional().default(''),
-  font: z.string().optional().default(''),
-  fontSize: z.string().optional().default(''),
-  colors: z.string().optional().default(''),
+  layout: LooseString.default(''),
+  font: LooseString.default(''),
+  fontSize: LooseString.default(''),
+  colors: LooseString.default(''),
 });
 
 /** VÍDEO: cada cena com enquadramento, texto de tela e narração/fala. */
 export const ShotSchema = z.object({
-  scene: z.string().optional().default(''),
+  scene: LooseString.default(''),
   durationSec: z.union([z.number(), z.string()]).optional(),
-  visual: z.string().optional().default(''),
-  screenText: z.string().optional().default(''),
-  voiceover: z.string().optional().default(''),
+  visual: LooseString.default(''),
+  screenText: LooseString.default(''),
+  voiceover: LooseString.default(''),
 });
 
 /** Direção criativa consolidada (PRD-003 / PRD-006) — adapta-se ao tipo de conteúdo. */
 export const AIDirectionOutputSchema = z.object({
   format: z.nativeEnum(CreativeFormat),
-  visualNotes: z.string().optional().default(''),
-  palette: z.string().optional().default(''),
+  visualNotes: LooseString.default(''),
+  palette: LooseString.default(''),
   typography: TypographySchema.optional().default({}),
   /** VÍDEO: instruções de edição (cortes, ritmo, b-roll, trilha). */
-  editingInsights: z.array(z.string()).default([]),
+  editingInsights: looseArray(LooseString).default([]),
   /** VÍDEO: direção de fala/entonação. */
-  voiceTone: z.string().optional().default(''),
+  voiceTone: LooseString.default(''),
   /** VÍDEO: decupagem cena a cena. */
-  shotList: z.array(ShotSchema).default([]),
+  shotList: looseArray(ShotSchema).default([]),
   /** ESTÁTICO: estrutura de slides/post com fonte, tamanho, cores e disposição. */
-  graphicElements: z.array(GraphicElementSchema).default([]),
+  graphicElements: looseArray(GraphicElementSchema).default([]),
 });
 
 export const AIDirectionInputSchema = z.object({
