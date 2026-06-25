@@ -1,5 +1,18 @@
 /** Rótulos e classes de cor (tema dark) para enums de domínio. */
-import { Pillar, AwarenessLevel, ContentClass, ContentType, ValidationVerdict, SignalSource, AngleType, DerivedAssetType } from '@content-engine/shared';
+import { Pillar, AwarenessLevel, ContentClass, ContentType, ValidationVerdict, SignalSource, AngleType, DerivedAssetType, CreativeFormat } from '@content-engine/shared';
+
+export const FORMAT_LABELS: Record<string, string> = {
+  [CreativeFormat.PESSOA_FALANDO]: 'Pessoa falando',
+  [CreativeFormat.PRINTS_PROCESSO]: 'Prints do processo',
+  [CreativeFormat.POV_DONO_AGENCIA]: 'POV dono de agência',
+  [CreativeFormat.ANTES_DEPOIS]: 'Antes/depois',
+  [CreativeFormat.CHECKLIST]: 'Checklist',
+  [CreativeFormat.STORYTELLING]: 'Storytelling',
+  [CreativeFormat.COMPARATIVO]: 'Comparativo',
+  [CreativeFormat.TREND_ADAPTADA]: 'Trend adaptada',
+  [CreativeFormat.SIMULACAO_CONVERSA]: 'Simulação de conversa',
+  [CreativeFormat.DEMONSTRACAO_PRODUTO]: 'Demonstração de produto',
+};
 
 export const CONTENT_TYPE_LABELS: Record<string, string> = {
   [ContentType.VIDEO]: 'Vídeo (Reel)',

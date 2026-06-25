@@ -12,12 +12,11 @@ import {
 import { STAGE_ORDER, Stage, Pillar, AwarenessLevel, ContentClass } from '@content-engine/shared';
 import { useBoard, useTransitionCard } from '../hooks/useBoard.js';
 import { useUIStore } from '../store/ui.js';
-import { useAuthStore } from '../store/auth.js';
-import { useAIStatus } from '../hooks/useAI.js';
 import KanbanColumn from '../components/board/KanbanColumn.js';
 import KanbanCard from '../components/board/KanbanCard.js';
 import CreateCardModal from '../components/board/CreateCardModal.js';
 import CardDetail from '../components/card/CardDetail.js';
+import AppHeader from '../components/AppHeader.js';
 import { PILLAR_LABELS, AWARENESS_LABELS } from '../lib/labels.js';
 import type { CardSummary } from '../hooks/useBoard.js';
 
@@ -25,9 +24,6 @@ export default function Board() {
   const { data: cards = [], isLoading } = useBoard();
   const transition = useTransitionCard();
   const { openCardId, setOpenCard, boardFilters, setFilter, clearFilters } = useUIStore();
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-  const aiStatus = useAIStatus();
   const [activeCard, setActiveCard] = useState<CardSummary | null>(null);
   const [overStage, setOverStage] = useState<Stage | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
@@ -81,27 +77,7 @@ export default function Board() {
   return (
     <div className="flex flex-col h-screen bg-surface-950">
       {/* Top bar */}
-      <header className="bg-surface-900 border-b border-surface-700 px-4 py-2.5 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-brand-500 to-ai-500 text-white font-bold text-sm">◑</div>
-          <div className="leading-tight">
-            <h1 className="text-sm font-bold text-white">Content Engine</h1>
-            <span className="text-[10px] text-slate-500">Lumen Digital</span>
-          </div>
-          {aiStatus.data && (
-            <span className={`badge ml-2 ${aiStatus.data.enabled ? 'bg-ai-600/15 text-ai-400 border border-ai-500/40' : 'bg-surface-700 text-slate-400'}`}>
-              {aiStatus.data.enabled ? '✦ IA ativa' : 'IA off'}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right leading-tight hidden sm:block">
-            <p className="text-xs text-slate-200">{user?.name}</p>
-            <p className="text-[10px] text-slate-500">{user?.role}</p>
-          </div>
-          <button onClick={() => void logout()} className="btn-ghost text-xs px-2 py-1.5">Sair</button>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Toolbar */}
       <div className="bg-surface-900/60 border-b border-surface-800 px-4 py-2 flex items-center gap-2 shrink-0 flex-wrap">

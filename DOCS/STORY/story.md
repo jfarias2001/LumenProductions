@@ -231,4 +231,41 @@ O `CardDetail` renderizava **as 14 abas ao mesmo tempo**, independentemente do e
 
 ---
 
+## [2026-06-25] Fase 5 — Base de Conhecimento da Empresa + Calendário Editorial com IA
+
+**Base:** PRD-005 / SPEC-005. Motivação: a IA criava conteúdo sempre a partir de um input pontual, sem memória da empresa, e produzia um card por vez. Relato: *"quero gerar um calendário editorial — a IA monta uma sequência de posts/reels que se conectam para engajar — e ter uma parte alimentada onde subo todos os dados da empresa para ela se embasar antes de criar."*
+
+### Decisões (travadas com o usuário)
+- **Base de conhecimento** = **formulário estruturado** (sem upload de arquivos / RAG na v1).
+- **Saída do calendário** = calendário datado **+ cada post pode virar card** no pipeline de 18 etapas.
+- **Cadência** = **usuário define** período/frequência/tipos; a IA preenche respeitando o mix 60/25/15.
+
+### Shared (`packages/shared`)
+- Novos schemas Zod: `CompanyPersonaSchema`, `CompanyProfileSchema`, `GenerateCalendarInputSchema`, `AICalendarItemSchema`, `AICalendarOutputSchema` + tipos inferidos. Novos preprocessadores tolerantes `ContentTypeLoose`/`FormatLoose` reusando o `coerceEnum` (rótulo/frase → enum). Sem mudança de enum.
+
+### Backend (`apps/api`)
+- **Prisma**: modelos `CompanyProfile` (singleton), `EditorialCalendar`, `EditorialCalendarItem` (com `cardId @unique` p/ vínculo idempotente). Relação inversa `Card.calendarItem`. Migration `20260625000000_company_and_calendar` (aditiva).
+- **`company.service`**: `getCompanyProfile`/`updateCompanyProfile` (upsert singleton) + `buildCompanyContext()` que monta um bloco compacto só com campos preenchidos (`''` se vazio).
+- **`ai.service`**: `goldenRule()` passou a anexar a Base da empresa como DADO (default vazio → comportamento inalterado para as 7 funções existentes). Nova `generateCalendar(input, userId)` — Regra de Ouro + mix-alvo + sequência conectada (campo `connection` por item), registrada em `AIJob`.
+- **`calendar.service`**: `generateAndSave` (chama a IA, **distribui as datas** no período via `dayOffsetsForWeek`, persiste calendar+itens), `list`/`getById`/`remove`, `sendItemToPipeline` (cria card em `IDEIAS_BRUTAS` + `CardStageHistory` + `emitBoard('card.created')`; **idempotente** — 2ª chamada devolve o card existente).
+- **Rotas `calendar.ts`** (`/api/v1`): `GET/PUT /company-profile`, `GET /calendars`, `GET /calendars/:id`, `POST /calendars/generate` (503 sem chave / 502 em falha), `POST /calendars/:id/items/:itemId/send-to-pipeline`, `DELETE /calendars/:id`. Nova permissão `manageCompany` (ADMIN/GESTOR); geração sob `useAI`; envio ao pipeline sob `createCard`. Registrada no `server.ts`.
+
+### Frontend (`apps/web`)
+- Novo `AppHeader` compartilhado com **navegação Board · Base da Empresa · Calendário** (o header inline do Board foi extraído para ele).
+- Hooks: `useCompany` (`useCompanyProfile`/`useSaveCompanyProfile`), `useCalendar` (`useCalendars`/`useCalendar`/`useGenerateCalendar`/`useSendCalendarItem`/`useDeleteCalendar`).
+- **`/empresa`** (`CompanyProfilePage`): formulário estruturado (campos texto + personas + editores de lista para do's/don'ts/keywords/links); edição só ADMIN/GESTOR; aviso de que os dados embasam a IA.
+- **`/calendario`** (`CalendarPage`): gerador (título/objetivo/início/semanas/posts-sem/tipos) com "✦ Gerar com IA" (fallback se IA off); lista de calendários; detalhe agrupado por semana com badge de pilar/formato/tipo, fio condutor, **indicador de mix vs. alvo** e botão "→ Enviar para o pipeline" por item (vira "✓ No pipeline").
+- `labels.ts`: `FORMAT_LABELS` (CreativeFormat).
+
+### Estado atual
+- Base da empresa persiste e, quando preenchida, embasa todas as gerações de IA. Calendário editorial gera uma sequência datada e conectada; cada item vira card uma única vez. Sem `OPENAI_API_KEY` → fallback claro. Pipeline e gates (`PipelineService`) **inalterados**.
+- `pnpm -r typecheck` OK nos 3 pacotes; `vite build` do web OK. Migration criada (aplicar com `prisma migrate deploy`); `dist` do shared rebuildado.
+
+### Próximos passos sugeridos
+- Editar inline os itens do calendário (título/pilar/data) antes de enviar ao pipeline.
+- "Enviar todos para o pipeline" em lote.
+- Upload de arquivos + RAG para a Base (fase seguinte, fora do escopo da v1).
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*

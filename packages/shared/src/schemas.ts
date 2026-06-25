@@ -440,6 +440,84 @@ export const AIDirectionOutputSchema = z.object({
   palette: z.string().optional().default(''),
 });
 
+// ── Base de conhecimento da empresa + Calendário editorial (PRD-005 / SPEC-005) ─
+
+export const CompanyPersonaSchema = z.object({
+  name: z.string().default(''),
+  description: z.string().default(''),
+  pains: z.string().default(''),
+});
+
+/** Perfil estruturado da empresa — singleton; embasa todas as gerações de IA. */
+export const CompanyProfileSchema = z.object({
+  companyName: z.string().max(200).default(''),
+  about: z.string().max(4000).default(''),
+  offerings: z.string().max(4000).default(''),
+  personas: z.array(CompanyPersonaSchema).default([]),
+  mainPains: z.string().max(4000).default(''),
+  toneOfVoice: z.string().max(2000).default(''),
+  differentiators: z.string().max(4000).default(''),
+  proofCases: z.string().max(4000).default(''),
+  dos: z.array(z.string()).default([]),
+  donts: z.array(z.string()).default([]),
+  keywords: z.array(z.string()).default([]),
+  links: z.array(z.string()).default([]),
+});
+
+/** Input do usuário para gerar um calendário editorial. */
+export const GenerateCalendarInputSchema = z.object({
+  title: z.string().min(1).max(200),
+  objective: z.string().min(1).max(2000),
+  startDate: z.string().min(8), // ISO (yyyy-mm-dd)
+  weeks: z.number().int().min(1).max(12),
+  postsPerWeek: z.number().int().min(1).max(14),
+  contentTypes: z.array(z.nativeEnum(ContentType)).min(1).default([ContentType.VIDEO, ContentType.ESTATICO]),
+  notes: z.string().max(4000).optional(),
+});
+
+const ContentTypeLoose = z.preprocess(
+  coerceEnum(ContentType, {
+    [ContentType.VIDEO]: ['video', 'reel', 'reels', 'short'],
+    [ContentType.ESTATICO]: ['estatic', 'static', 'post', 'carrossel', 'carousel', 'imagem'],
+  }),
+  z.nativeEnum(ContentType).optional(),
+);
+
+const FormatLoose = z.preprocess(
+  coerceEnum(CreativeFormat, {
+    [CreativeFormat.PESSOA_FALANDO]: ['pessoa', 'falando', 'talking'],
+    [CreativeFormat.PRINTS_PROCESSO]: ['print', 'processo'],
+    [CreativeFormat.POV_DONO_AGENCIA]: ['pov', 'dono'],
+    [CreativeFormat.ANTES_DEPOIS]: ['antes', 'depois'],
+    [CreativeFormat.CHECKLIST]: ['checklist', 'lista'],
+    [CreativeFormat.STORYTELLING]: ['story', 'historia', 'narrativa'],
+    [CreativeFormat.COMPARATIVO]: ['comparativ', 'versus', 'vs'],
+    [CreativeFormat.TREND_ADAPTADA]: ['trend', 'tendenc'],
+    [CreativeFormat.SIMULACAO_CONVERSA]: ['simula', 'conversa', 'chat'],
+    [CreativeFormat.DEMONSTRACAO_PRODUTO]: ['demo', 'demonstra', 'produto'],
+  }),
+  z.nativeEnum(CreativeFormat).optional(),
+);
+
+/** Item devolvido pela IA (datas são calculadas no backend). */
+export const AICalendarItemSchema = z.object({
+  week: z.number().int().min(1).default(1),
+  title: z.string(),
+  pillar: PillarLoose,
+  contentType: ContentTypeLoose,
+  format: FormatLoose,
+  persona: z.string().optional(),
+  pain: z.string().optional(),
+  promise: z.string().optional(),
+  connection: z.string().optional(),
+});
+
+/** Saída completa da IA: fio condutor + sequência de itens conectados. */
+export const AICalendarOutputSchema = z.object({
+  theme: z.string().default(''),
+  items: z.array(AICalendarItemSchema).min(1),
+});
+
 // ── Conversa por fase (PRD-003 / SPEC-003) ─────────────────────────────────────
 
 export const ConversationMessageInputSchema = z.object({
@@ -503,3 +581,8 @@ export type ConsolidateInput = z.infer<typeof ConsolidateInputSchema>;
 export type GenerateStageInput = z.infer<typeof GenerateStageInputSchema>;
 export type CreatePromptTemplateInput = z.infer<typeof CreatePromptTemplateSchema>;
 export type UpdatePromptTemplateInput = z.infer<typeof UpdatePromptTemplateSchema>;
+export type CompanyPersona = z.infer<typeof CompanyPersonaSchema>;
+export type CompanyProfileInput = z.infer<typeof CompanyProfileSchema>;
+export type GenerateCalendarInput = z.infer<typeof GenerateCalendarInputSchema>;
+export type AICalendarItem = z.infer<typeof AICalendarItemSchema>;
+export type AICalendarOutput = z.infer<typeof AICalendarOutputSchema>;

@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/auth.js';
 import Login from './pages/Login.js';
 import Board from './pages/Board.js';
+import CompanyProfilePage from './pages/CompanyProfilePage.js';
+import CalendarPage from './pages/CalendarPage.js';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -27,6 +29,22 @@ export default function App() {
         element={
           <RequireAuth>
             <Board />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/empresa"
+        element={
+          <RequireAuth>
+            <CompanyProfilePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/calendario"
+        element={
+          <RequireAuth>
+            <CalendarPage />
           </RequireAuth>
         }
       />

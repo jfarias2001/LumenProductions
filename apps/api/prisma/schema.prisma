@@ -179,6 +179,7 @@ model Card {
   activityLogs   ActivityLog[]
   aiJobs         AIJob[]
   conversations  AIConversation[]
+  calendarItem   EditorialCalendarItem?
   archivedAt     DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -461,6 +462,61 @@ model PromptTemplate {
   updatedAt DateTime @updatedAt
 
   @@index([stage])
+}
+
+// ── Base de conhecimento + Calendário editorial (PRD-005 / SPEC-005) ──────────
+
+model CompanyProfile {
+  id              String   @id @default("singleton")
+  companyName     String   @default("")
+  about           String   @default("")
+  offerings       String   @default("")
+  personas        Json     @default("[]") // [{name, description, pains}]
+  mainPains       String   @default("")
+  toneOfVoice     String   @default("")
+  differentiators String   @default("")
+  proofCases      String   @default("")
+  dos             String[] @default([])
+  donts           String[] @default([])
+  keywords        String[] @default([])
+  links           String[] @default([])
+  updatedAt       DateTime @updatedAt
+}
+
+model EditorialCalendar {
+  id           String                  @id @default(cuid())
+  title        String
+  objective    String
+  theme        String?
+  startDate    DateTime
+  weeks        Int
+  postsPerWeek Int
+  status       String                  @default("draft")
+  createdById  String?
+  items        EditorialCalendarItem[]
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+}
+
+model EditorialCalendarItem {
+  id           String            @id @default(cuid())
+  calendarId   String
+  calendar     EditorialCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  position     Int
+  scheduledFor DateTime
+  title        String
+  pillar       Pillar?
+  contentType  ContentType       @default(VIDEO)
+  format       CreativeFormat?
+  persona      String?
+  pain         String?
+  promise      String?
+  connection   String?
+  cardId       String?           @unique
+  card         Card?             @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now())
+
+  @@index([calendarId])
 }
 
 model RefreshToken {
