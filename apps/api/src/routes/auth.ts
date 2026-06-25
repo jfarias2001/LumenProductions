@@ -6,6 +6,9 @@ import { LoginSchema } from '@content-engine/shared';
 
 const REFRESH_COOKIE = 'refresh_token';
 const REFRESH_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
+// Cookie path deve casar com o prefixo real das rotas (`/api/v1/auth`), senão o
+// browser nunca reenvia o refresh token para POST /api/v1/auth/refresh.
+const REFRESH_COOKIE_PATH = '/api/v1/auth';
 
 export default async function authRoutes(fastify: FastifyInstance) {
   // POST /auth/login
@@ -30,7 +33,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       httpOnly: true,
       secure: process.env['NODE_ENV'] === 'production',
       sameSite: 'lax',
-      path: '/auth',
+      path: REFRESH_COOKIE_PATH,
       maxAge: REFRESH_MAX_AGE,
     });
 
@@ -74,7 +77,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       httpOnly: true,
       secure: process.env['NODE_ENV'] === 'production',
       sameSite: 'lax',
-      path: '/auth',
+      path: REFRESH_COOKIE_PATH,
       maxAge: REFRESH_MAX_AGE,
     });
 
@@ -86,7 +89,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const token = (request.cookies as Record<string, string | undefined>)[REFRESH_COOKIE];
     if (token) {
       await prisma.refreshToken.updateMany({ where: { token }, data: { revoked: true } });
-      void reply.clearCookie(REFRESH_COOKIE, { path: '/auth' });
+      void reply.clearCookie(REFRESH_COOKIE, { path: REFRESH_COOKIE_PATH });
     }
     return reply.send({ ok: true });
   });
