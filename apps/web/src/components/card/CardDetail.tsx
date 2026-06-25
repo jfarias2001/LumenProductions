@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api.js';
 import { STAGE_LABELS, STAGE_ORDER, Stage, SignalSource, AwarenessLevel, Pillar, ContentClass } from '@content-engine/shared';
 import { formatDate } from '../../lib/utils.js';
-import { useCard, useArchiveCard, useTransitionCard } from '../../hooks/useBoard.js';
+import { useCard, useArchiveCard, useTransitionCard, useConfirmValidation } from '../../hooks/useBoard.js';
 import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle } from '../../hooks/useAI.js';
 import { PILLAR_LABELS, AWARENESS_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS, CLASS_BADGE } from '../../lib/labels.js';
 import AICopilotButton from './AICopilotButton.js';
@@ -411,6 +411,14 @@ function ContentClassField({ card, onUpdate }: { card: Rec; onUpdate: (d: Rec) =
 function ValidacaoTab({ cardId, card }: { cardId: string; card: Rec }) {
   const v = card.validation as Rec | null | undefined;
   const validate = useAIValidate(cardId);
+  const confirm = useConfirmValidation(cardId);
+  const SCORE_KEYS = ['dorQuente', 'clareza', 'contraste', 'especificidadeAgencia', 'potencialComentarios', 'potencialComercial'] as const;
+  const handleConfirm = () => {
+    if (!v) return;
+    const scores: Record<string, number> = {};
+    for (const k of SCORE_KEYS) scores[k] = Number(v[k] ?? 0);
+    confirm.mutate(scores);
+  };
   return (
     <div className="space-y-4">
       <AICopilotButton label="Validar com IA" mutation={validate} hint="entra como sugestão; gate exige confirmação humana" />
@@ -420,8 +428,24 @@ function ValidacaoTab({ cardId, card }: { cardId: string; card: Rec }) {
             <span className="text-3xl font-bold text-white">{String(v.total)}</span>
             <span className="text-slate-500">/18</span>
             <span className={`badge !text-xs !px-2 !py-1 ${VERDICT_BADGE[String(v.verdict)] ?? 'bg-surface-700 text-slate-400'}`}>{String(v.verdict).replace(/_/g, ' ')}</span>
-            {Boolean(v.aiSuggested) && !v.reviewedById && <span className="badge bg-ai-600/15 text-ai-400 border border-ai-500/40">sugestão IA — revisar</span>}
+            {v.reviewedById
+              ? <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/40">✓ confirmada por humano</span>
+              : <span className="badge bg-ai-600/15 text-ai-400 border border-ai-500/40">sugestão IA — revisar</span>}
           </div>
+          {!v.reviewedById && (
+            <div className="surface-card bg-surface-850 p-3 space-y-2">
+              <p className="text-xs text-slate-400">Revise as notas acima. Ao confirmar, você assume a validação como humano e libera o avanço da etapa.</p>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={confirm.isPending}
+                className="btn-primary w-full disabled:opacity-50"
+              >
+                {confirm.isPending ? 'Confirmando…' : '✓ Confirmar validação'}
+              </button>
+              {confirm.isError && <p className="text-xs text-rose-400">Falha ao confirmar. Tente novamente.</p>}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2 text-xs">
             {['dorQuente','clareza','contraste','especificidadeAgencia','potencialComentarios','potencialComercial'].map((k) => (
               <div key={k} className="surface-card bg-surface-850 p-2.5">

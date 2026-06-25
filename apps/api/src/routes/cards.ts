@@ -184,12 +184,14 @@ export default async function cardRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = ValidationSchema.parse(request.body);
     const { total, verdict } = calculateValidation(body);
+    // Confirmação humana: registra quem revisou e remove o status de sugestão da IA.
+    const reviewed = { ...body, total, verdict, aiSuggested: false, reviewedById: request.actor.sub };
     const validation = await prisma.validation.upsert({
       where: { cardId: id },
-      update: { ...body, total, verdict },
-      create: { cardId: id, ...body, total, verdict },
+      update: reviewed,
+      create: { cardId: id, ...reviewed },
     });
-    await prisma.activityLog.create({ data: { cardId: id, actorId: request.actor.sub, action: 'validation.scored', payload: { total, verdict } } });
+    await prisma.activityLog.create({ data: { cardId: id, actorId: request.actor.sub, action: 'validation.confirmed', payload: { total, verdict } } });
     emitBoard('card.updated', { id, validation });
     return reply.send(validation);
   });

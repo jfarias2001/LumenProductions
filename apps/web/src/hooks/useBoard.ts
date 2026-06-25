@@ -62,6 +62,19 @@ export function useTransitionCard() {
   });
 }
 
+/** Confirmação humana da validação — grava reviewedById e libera o gate. */
+export function useConfirmValidation(cardId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (scores: Record<string, number>) =>
+      api.put(`/cards/${cardId}/validation`, scores),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['card', cardId] });
+      void qc.invalidateQueries({ queryKey: ['board'] });
+    },
+  });
+}
+
 export function useCreateCard() {
   const qc = useQueryClient();
   return useMutation({

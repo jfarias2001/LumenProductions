@@ -268,4 +268,17 @@ O `CardDetail` renderizava **as 14 abas ao mesmo tempo**, independentemente do e
 
 ---
 
+## [2026-06-25] Fix: confirmação humana da validação (gate Ideias Validadas)
+
+**Problema:** o gate `IDEIAS_VALIDADAS → ANGULO_DEFINIDO` exige `validation.reviewedById`, mas nenhum caminho da app gravava esse campo — "Validar com IA" cria sugestão (`reviewedById: null`) e o endpoint `PUT /cards/:id/validation` também não o setava, nem havia botão na UI. Gate ficava travado permanentemente.
+
+**Correção:**
+- `apps/api/src/routes/cards.ts` — `PUT /cards/:id/validation` agora grava `reviewedById: actor.sub` e `aiSuggested: false` (log `validation.confirmed`).
+- `apps/web/src/hooks/useBoard.ts` — novo `useConfirmValidation(cardId)`.
+- `apps/web/src/components/card/CardDetail.tsx` (`ValidacaoTab`) — botão **"✓ Confirmar validação"** quando há validação não revisada; badge "✓ confirmada por humano" após confirmar.
+
+`tsc --noEmit` OK em web e api.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
