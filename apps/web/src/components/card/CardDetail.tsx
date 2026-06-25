@@ -4,7 +4,7 @@ import { api } from '../../lib/api.js';
 import { STAGE_LABELS, STAGE_ORDER, Stage, SignalSource, AwarenessLevel, Pillar, ContentClass, AngleType, HookStatus, CreativeFormat, RETENTION_QUESTIONS, MIN_HOOKS_TO_ADVANCE, SCRIPT_DURATION } from '@content-engine/shared';
 import { formatDate } from '../../lib/utils.js';
 import { useCard, useArchiveCard, useTransitionCard, useConfirmValidation } from '../../hooks/useBoard.js';
-import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle } from '../../hooks/useAI.js';
+import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle, useAIDirection } from '../../hooks/useAI.js';
 import { PILLAR_LABELS, AWARENESS_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS, CLASS_BADGE, FORMAT_LABELS } from '../../lib/labels.js';
 import AICopilotButton from './AICopilotButton.js';
 import PhaseChat from './PhaseChat.js';
@@ -727,6 +727,8 @@ function CopyTab({ cardId, card }: { cardId: string; card: Rec }) {
 function DirecaoTab({ cardId, card }: { cardId: string; card: Rec }) {
   const c = card.creative as Rec | null | undefined;
   const invalidate = useCardInvalidate(cardId);
+  const gen = useAIDirection(cardId);
+  const isStatic = String(card.contentType) === 'ESTATICO';
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<string>(String(c?.format ?? ''));
   const [notes, setNotes] = useState(String(c?.visualNotes ?? ''));
@@ -766,21 +768,47 @@ function DirecaoTab({ cardId, card }: { cardId: string; card: Rec }) {
   if (!c) {
     return (
       <div className="space-y-3">
-        <Empty>Direção criativa não definida. Use o Copiloto IA acima ou defina manualmente.</Empty>
+        <AICopilotButton label="Gerar direção com IA" mutation={gen} hint={isStatic ? 'elementos visuais, layout, fontes e cores' : 'decupagem, entonação e edição'} />
+        <Empty>Direção criativa não definida. Gere com IA acima ou defina manualmente.</Empty>
         <button className="btn-ghost text-xs" onClick={startEdit}>Definir formato manualmente</button>
       </div>
     );
   }
   const editing = (c.editingInsights as string[]) ?? [];
   const graphics = (c.graphicElements as Rec[]) ?? [];
+  const plan = (c.productionPlan as Rec | null) ?? {};
+  const typo = plan.typography as Rec | undefined;
+  const shots = (plan.shotList as Rec[]) ?? [];
+  const voiceTone = String(plan.voiceTone ?? '');
   return (
     <div className="space-y-3">
+      <AICopilotButton label="Gerar direção com IA" mutation={gen} hint={isStatic ? 'elementos visuais, layout, fontes e cores' : 'decupagem, entonação e edição'} />
       <Field label="Formato"><span className="badge bg-brand-600/20 text-brand-300">{String(c.format).replace(/_/g, ' ')}</span></Field>
+
+      {/* VÍDEO — decupagem cena a cena */}
+      {shots.length > 0 && (
+        <Field label="Decupagem (cena a cena)">
+          <div className="space-y-2">
+            {shots.map((s, i) => (
+              <div key={i} className="surface-card bg-surface-850 p-2.5">
+                <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-0.5">Cena {i + 1}{s.durationSec ? ` · ${String(s.durationSec)}s` : ''}</p>
+                {s.scene ? <p className="text-sm text-slate-200">{String(s.scene)}</p> : null}
+                {s.visual ? <p className="text-xs text-slate-400 mt-0.5">🎥 {String(s.visual)}</p> : null}
+                {s.screenText ? <p className="text-xs text-slate-400 mt-0.5">🅰 Tela: {String(s.screenText)}</p> : null}
+                {s.voiceover ? <p className="text-xs text-slate-400 mt-0.5">🎙 Fala: {String(s.voiceover)}</p> : null}
+              </div>
+            ))}
+          </div>
+        </Field>
+      )}
+      {voiceTone && <Field label="Direção de fala (entonação)"><p className="text-sm text-slate-300 whitespace-pre-wrap">{voiceTone}</p></Field>}
       {editing.length > 0 && (
         <Field label="Insights de edição (vídeo)">
           <ul className="list-disc list-inside space-y-1 text-sm text-slate-300">{editing.map((t, i) => <li key={i}>{t}</li>)}</ul>
         </Field>
       )}
+
+      {/* ESTÁTICO — elementos gráficos detalhados */}
       {graphics.length > 0 && (
         <Field label="Elementos gráficos (estático)">
           <div className="space-y-2">
@@ -789,12 +817,25 @@ function DirecaoTab({ cardId, card }: { cardId: string; card: Rec }) {
                 <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-0.5">Slide {String(g.slide ?? i + 1)}</p>
                 {g.headline ? <p className="text-sm text-slate-100 font-medium">{String(g.headline)}</p> : null}
                 {g.body ? <p className="text-sm text-slate-300 whitespace-pre-wrap">{String(g.body)}</p> : null}
-                {g.visual ? <p className="text-xs text-slate-500 mt-0.5">Visual: {String(g.visual)}</p> : null}
+                {g.visual ? <p className="text-xs text-slate-400 mt-0.5">🖼 Visual: {String(g.visual)}</p> : null}
+                {g.layout ? <p className="text-xs text-slate-400 mt-0.5">📐 Disposição: {String(g.layout)}</p> : null}
+                {(g.font || g.fontSize) ? <p className="text-xs text-slate-400 mt-0.5">🔤 Fonte: {String(g.font ?? '')}{g.fontSize ? ` · ${String(g.fontSize)}` : ''}</p> : null}
+                {g.colors ? <p className="text-xs text-slate-400 mt-0.5">🎨 Cores: {String(g.colors)}</p> : null}
               </div>
             ))}
           </div>
         </Field>
       )}
+
+      {typo && (typo.headingFont || typo.bodyFont || typo.notes) ? (
+        <Field label="Tipografia">
+          <div className="text-sm text-slate-300 space-y-0.5">
+            {typo.headingFont ? <p>Título: <span className="text-slate-100">{String(typo.headingFont)}</span></p> : null}
+            {typo.bodyFont ? <p>Corpo: <span className="text-slate-100">{String(typo.bodyFont)}</span></p> : null}
+            {typo.notes ? <p className="text-xs text-slate-500">{String(typo.notes)}</p> : null}
+          </div>
+        </Field>
+      ) : null}
       {c.palette ? <Field label="Paleta"><p className="text-sm text-slate-300 whitespace-pre-wrap">{String(c.palette)}</p></Field> : null}
       {c.visualNotes ? <Field label="Notas visuais"><p className="text-sm text-slate-300 whitespace-pre-wrap">{String(c.visualNotes)}</p></Field> : null}
       {((c.referenceUrls as string[]) ?? []).length > 0 && (

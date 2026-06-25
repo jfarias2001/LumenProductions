@@ -256,8 +256,9 @@ model CreativeDirection {
   visualNotes     String?
   referenceUrls   String[]       @default([])
   editingInsights String[]       @default([]) // VÍDEO: cortes, ritmo, b-roll, legendas, trilha
-  graphicElements Json?                        // ESTÁTICO: [{ slide, headline, body, visual }]
+  graphicElements Json?                        // ESTÁTICO: [{ slide, headline, body, visual, layout, font, fontSize, colors }]
   palette         String?                      // ESTÁTICO: paleta/estilo sugerido
+  productionPlan  Json?                        // Plano rico: { typography, voiceTone, shotList } (PRD-006)
   aiGenerated     Boolean        @default(false)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt

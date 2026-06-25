@@ -238,24 +238,43 @@ export async function direction(cardId: string, createdById?: string, conversati
     hooks: card.hooks.map((h) => h.text),
   };
 
-  const system = `${await goldenRule()}\nVocê define a direção criativa de produção. ${
+  const system = `${await goldenRule()}\nVocê é diretor(a) de arte e produção. Entregue uma direção criativa PRONTA PARA EXECUTAR — específica e acionável, sem generalidades. ${
     isStatic
-      ? 'O conteúdo é ESTÁTICO (post/carrossel): foque na estrutura de slides, elementos visuais e paleta.'
-      : 'O conteúdo é VÍDEO (Reel): foque em cortes, ritmo, b-roll, textos de tela e trilha.'
+      ? 'O conteúdo é ESTÁTICO (post/carrossel): detalhe slide a slide os elementos visuais, a disposição na tela, fontes, tamanhos e cores.'
+      : 'O conteúdo é VÍDEO (Reel): detalhe a decupagem cena a cena, a direção de fala/entonação e os insights de edição.'
   }`;
 
   const formatos = 'PESSOA_FALANDO, PRINTS_PROCESSO, POV_DONO_AGENCIA, ANTES_DEPOIS, CHECKLIST, STORYTELLING, COMPARATIVO, TREND_ADAPTADA, SIMULACAO_CONVERSA, DEMONSTRACAO_PRODUTO';
   const user = `${dataBlock('Card', JSON.stringify(ctx))}${convoBlock(conversation)}
 
 Escolha um "format" entre: ${formatos}.
+Sempre preencha "typography" ({headingFont, bodyFont, notes}) com fontes concretas (ex.: "Montserrat Bold", "Inter Regular") e "palette" (cores/estilo, com códigos hex quando possível).
 ${
     isStatic
-      ? 'Para ESTÁTICO, preencha "graphicElements" com a estrutura de cada slide/elemento ({slide, headline, body, visual}), "palette" (paleta/estilo) e "visualNotes". Deixe "editingInsights" como [].'
-      : 'Para VÍDEO, preencha "editingInsights" (lista de instruções de edição: cortes, ritmo, b-roll, textos de tela, trilha) e "visualNotes". Deixe "graphicElements" como [] e "palette" vazio.'
+      ? `Para ESTÁTICO, preencha "graphicElements" — um item por slide/elemento — com: "headline", "body", "visual" (imagem/ícone/gráfico), "layout" (COMO dispor os elementos na tela, ex.: "título no topo centralizado, dado em destaque no centro, CTA no rodapé"), "font", "fontSize" (ex.: "título 72px, corpo 36px") e "colors". Deixe "shotList" e "editingInsights" como [].`
+      : `Para VÍDEO, preencha "shotList" — uma cena por item — com: "scene" (descrição), "durationSec", "visual" (enquadramento/b-roll), "screenText" (texto que aparece na tela) e "voiceover" (a fala exata). Preencha também "voiceTone" (direção de entonação/ritmo da fala) e "editingInsights" (cortes, ritmo, transições, trilha). Deixe "graphicElements" como [].`
   }
-Responda APENAS JSON: {"format":"...","visualNotes":"...","editingInsights":["..."],"graphicElements":[{"slide":1,"headline":"...","body":"...","visual":"..."}],"palette":"..."}`;
+Responda APENAS JSON: {"format":"...","visualNotes":"...","palette":"...","typography":{"headingFont":"...","bodyFont":"...","notes":"..."},"voiceTone":"...","editingInsights":["..."],"shotList":[{"scene":"...","durationSec":5,"visual":"...","screenText":"...","voiceover":"..."}],"graphicElements":[{"slide":1,"headline":"...","body":"...","visual":"...","layout":"...","font":"...","fontSize":"...","colors":"..."}]}`;
 
   return run({ type: 'direction', cardId, createdById, system, user, schema: AIDirectionOutputSchema, schemaName: 'direction', temperature: 0.6 });
+}
+
+/** Persiste a saída de direção criativa (rota direta + consolidação da conversa). */
+export async function persistDirection(cardId: string, out: AIDirectionOutput) {
+  const data = {
+    format: out.format,
+    visualNotes: out.visualNotes,
+    palette: out.palette,
+    editingInsights: out.editingInsights,
+    graphicElements: out.graphicElements as unknown as Prisma.InputJsonValue,
+    productionPlan: { typography: out.typography, voiceTone: out.voiceTone, shotList: out.shotList } as unknown as Prisma.InputJsonValue,
+    aiGenerated: true,
+  };
+  return prisma.creativeDirection.upsert({
+    where: { cardId },
+    update: data,
+    create: { cardId, ...data },
+  });
 }
 
 // ── Orquestrador: consolida a conversa de uma fase nas entidades reais (PRD-003) ──
@@ -345,26 +364,7 @@ async function persistStageFromSource(
 
     case Stage.DIRECAO_CRIATIVA: {
       const out = await direction(cardId, userId, source);
-      const creative = await prisma.creativeDirection.upsert({
-        where: { cardId },
-        update: {
-          format: out.format,
-          visualNotes: out.visualNotes,
-          editingInsights: out.editingInsights,
-          graphicElements: out.graphicElements as unknown as Prisma.InputJsonValue,
-          palette: out.palette,
-          aiGenerated: true,
-        },
-        create: {
-          cardId,
-          format: out.format,
-          visualNotes: out.visualNotes,
-          editingInsights: out.editingInsights,
-          graphicElements: out.graphicElements as unknown as Prisma.InputJsonValue,
-          palette: out.palette,
-          aiGenerated: true,
-        },
-      });
+      const creative = await persistDirection(cardId, out);
       return { entity: 'creative', data: creative };
     }
 

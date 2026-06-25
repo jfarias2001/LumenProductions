@@ -17,6 +17,7 @@ import {
   AIAnglesInputSchema,
   AICopyInputSchema,
   AIRecycleInputSchema,
+  AIDirectionInputSchema,
   Stage,
 } from '@content-engine/shared';
 
@@ -151,6 +152,19 @@ export default async function aiRoutes(fastify: FastifyInstance) {
       }
       emitBoard('card.updated', { id: cardId });
       return reply.send({ script, copy: copyContent, screenTexts: out.screenTexts });
+    } catch (err) {
+      return aiError(reply, err);
+    }
+  });
+
+  // ── 5b. Direção criativa → rascunho rico (adapta-se ao tipo de conteúdo) ─────
+  fastify.post('/ai/direction', guard, async (request, reply) => {
+    const { cardId } = AIDirectionInputSchema.parse(request.body);
+    try {
+      const out = await aiService.direction(cardId, request.actor.sub);
+      const creative = await aiService.persistDirection(cardId, out);
+      emitBoard('card.updated', { id: cardId });
+      return reply.send(creative);
     } catch (err) {
       return aiError(reply, err);
     }

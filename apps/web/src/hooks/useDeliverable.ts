@@ -6,6 +6,24 @@ export interface GraphicElement {
   headline?: string;
   body?: string;
   visual?: string;
+  layout?: string;
+  font?: string;
+  fontSize?: string;
+  colors?: string;
+}
+
+export interface Shot {
+  scene?: string;
+  durationSec?: number | string;
+  visual?: string;
+  screenText?: string;
+  voiceover?: string;
+}
+
+export interface Typography {
+  headingFont?: string;
+  bodyFont?: string;
+  notes?: string;
 }
 
 export type Deliverable =
@@ -16,6 +34,10 @@ export type Deliverable =
       script: Record<string, unknown> | null;
       screenTexts: string[];
       editingInsights: string[];
+      voiceTone: string | null;
+      shotList: Shot[];
+      typography: Typography | null;
+      palette: string | null;
       format: string | null;
       caption: string | null;
       ctaVariations: string[];
@@ -27,6 +49,7 @@ export type Deliverable =
       caption: string | null;
       ctaVariations: string[];
       graphicElements: GraphicElement[];
+      typography: Typography | null;
       palette: string | null;
     };
 

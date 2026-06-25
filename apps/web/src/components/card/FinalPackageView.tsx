@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useDeliverable } from '../../hooks/useDeliverable.js';
+import type { Typography } from '../../hooks/useDeliverable.js';
 
 interface Props {
   cardId: string;
@@ -48,6 +49,22 @@ export default function FinalPackageView({ cardId }: Props) {
               </div>
             </Section>
           ) : <Missing label="Roteiro" />}
+          {data.shotList.length > 0 && (
+            <Section title="Decupagem (cena a cena)">
+              <div className="space-y-2">
+                {data.shotList.map((s, i) => (
+                  <div key={i} className="surface-card bg-surface-850 p-3">
+                    <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-1">Cena {i + 1}{s.durationSec ? ` · ${s.durationSec}s` : ''}</p>
+                    {s.scene && <p className="text-sm text-slate-200">{s.scene}</p>}
+                    {s.visual && <p className="text-xs text-slate-400 mt-0.5">🎥 {s.visual}</p>}
+                    {s.screenText && <p className="text-xs text-slate-400 mt-0.5">🅰 Tela: {s.screenText}</p>}
+                    {s.voiceover && <p className="text-xs text-slate-400 mt-0.5">🎙 Fala: {s.voiceover}</p>}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+          {data.voiceTone && <Section title="Direção de fala (entonação)"><p className="text-sm text-slate-300 whitespace-pre-wrap">{data.voiceTone}</p></Section>}
           {data.screenTexts.length > 0 && (
             <Section title="Textos de tela">
               <div className="flex flex-wrap gap-1.5">{data.screenTexts.map((t, i) => <span key={i} className="badge bg-surface-700 text-slate-300">{t}</span>)}</div>
@@ -58,6 +75,8 @@ export default function FinalPackageView({ cardId }: Props) {
               <ul className="list-disc list-inside space-y-1 text-sm text-slate-300">{data.editingInsights.map((t, i) => <li key={i}>{t}</li>)}</ul>
             </Section>
           ) : <Missing label="Insights de edição" />}
+          {data.typography && <TypographySection t={data.typography} />}
+          {data.palette && <Section title="Paleta"><p className="text-sm text-slate-300 whitespace-pre-wrap">{data.palette}</p></Section>}
         </>
       ) : (
         <>
@@ -70,12 +89,16 @@ export default function FinalPackageView({ cardId }: Props) {
                     <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-1">Slide {g.slide ?? i + 1}</p>
                     {g.headline && <p className="text-sm text-slate-100 font-medium">{g.headline}</p>}
                     {g.body && <p className="text-sm text-slate-300 whitespace-pre-wrap">{g.body}</p>}
-                    {g.visual && <p className="text-xs text-slate-500 mt-1">Visual: {g.visual}</p>}
+                    {g.visual && <p className="text-xs text-slate-400 mt-1">🖼 Visual: {g.visual}</p>}
+                    {g.layout && <p className="text-xs text-slate-400 mt-0.5">📐 Disposição: {g.layout}</p>}
+                    {(g.font || g.fontSize) && <p className="text-xs text-slate-400 mt-0.5">🔤 Fonte: {g.font ?? ''}{g.fontSize ? ` · ${g.fontSize}` : ''}</p>}
+                    {g.colors && <p className="text-xs text-slate-400 mt-0.5">🎨 Cores: {g.colors}</p>}
                   </div>
                 ))}
               </div>
             </Section>
           ) : <Missing label="Elementos gráficos" />}
+          {data.typography && <TypographySection t={data.typography} />}
           {data.palette && <Section title="Paleta"><p className="text-sm text-slate-300 whitespace-pre-wrap">{data.palette}</p></Section>}
         </>
       )}
@@ -101,4 +124,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Missing({ label }: { label: string }) {
   return <p className="text-xs text-slate-600">{label}: ainda não consolidado.</p>;
+}
+
+function TypographySection({ t }: { t: Typography }) {
+  if (!t.headingFont && !t.bodyFont && !t.notes) return null;
+  return (
+    <Section title="Tipografia">
+      <div className="text-sm text-slate-300 space-y-0.5">
+        {t.headingFont && <p>Título: <span className="text-slate-100">{t.headingFont}</span></p>}
+        {t.bodyFont && <p>Corpo: <span className="text-slate-100">{t.bodyFont}</span></p>}
+        {t.notes && <p className="text-xs text-slate-500">{t.notes}</p>}
+      </div>
+    </Section>
+  );
 }

@@ -51,6 +51,14 @@ export function useAICopy(cardId: string) {
   });
 }
 
+export function useAIDirection(cardId: string) {
+  const invalidate = useCardInvalidation(cardId);
+  return useMutation({
+    mutationFn: () => api.post('/ai/direction', { cardId }),
+    onSuccess: invalidate,
+  });
+}
+
 export function useAIRecycle(cardId: string) {
   const invalidate = useCardInvalidation(cardId);
   return useMutation({

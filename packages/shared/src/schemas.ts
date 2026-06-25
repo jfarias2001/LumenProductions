@@ -420,24 +420,53 @@ export const AIRecycleOutputSchema = z.object({
     .min(1),
 });
 
-/** Direção criativa consolidada (PRD-003) — adapta-se ao tipo de conteúdo. */
+/** Tipografia sugerida para a peça (fonte de título/corpo + observações). */
+export const TypographySchema = z.object({
+  headingFont: z.string().optional().default(''),
+  bodyFont: z.string().optional().default(''),
+  notes: z.string().optional().default(''),
+});
+
+/** ESTÁTICO: cada slide/elemento com disposição na tela, fonte, tamanho e cores. */
+export const GraphicElementSchema = z.object({
+  slide: z.union([z.number(), z.string()]).optional(),
+  headline: z.string().optional().default(''),
+  body: z.string().optional().default(''),
+  visual: z.string().optional().default(''),
+  /** Como dispor os elementos na tela (ex.: "título no topo centralizado, imagem ao fundo"). */
+  layout: z.string().optional().default(''),
+  font: z.string().optional().default(''),
+  fontSize: z.string().optional().default(''),
+  colors: z.string().optional().default(''),
+});
+
+/** VÍDEO: cada cena com enquadramento, texto de tela e narração/fala. */
+export const ShotSchema = z.object({
+  scene: z.string().optional().default(''),
+  durationSec: z.union([z.number(), z.string()]).optional(),
+  visual: z.string().optional().default(''),
+  screenText: z.string().optional().default(''),
+  voiceover: z.string().optional().default(''),
+});
+
+/** Direção criativa consolidada (PRD-003 / PRD-006) — adapta-se ao tipo de conteúdo. */
 export const AIDirectionOutputSchema = z.object({
   format: z.nativeEnum(CreativeFormat),
   visualNotes: z.string().optional().default(''),
-  /** VÍDEO: cortes, ritmo, b-roll, textos de tela, trilha. */
-  editingInsights: z.array(z.string()).default([]),
-  /** ESTÁTICO: estrutura de slides/post. */
-  graphicElements: z
-    .array(
-      z.object({
-        slide: z.union([z.number(), z.string()]).optional(),
-        headline: z.string().optional().default(''),
-        body: z.string().optional().default(''),
-        visual: z.string().optional().default(''),
-      }),
-    )
-    .default([]),
   palette: z.string().optional().default(''),
+  typography: TypographySchema.optional().default({}),
+  /** VÍDEO: instruções de edição (cortes, ritmo, b-roll, trilha). */
+  editingInsights: z.array(z.string()).default([]),
+  /** VÍDEO: direção de fala/entonação. */
+  voiceTone: z.string().optional().default(''),
+  /** VÍDEO: decupagem cena a cena. */
+  shotList: z.array(ShotSchema).default([]),
+  /** ESTÁTICO: estrutura de slides/post com fonte, tamanho, cores e disposição. */
+  graphicElements: z.array(GraphicElementSchema).default([]),
+});
+
+export const AIDirectionInputSchema = z.object({
+  cardId: z.string().cuid(),
 });
 
 // ── Base de conhecimento da empresa + Calendário editorial (PRD-005 / SPEC-005) ─
@@ -576,6 +605,10 @@ export type AIAnglesOutput = z.infer<typeof AIAnglesOutputSchema>;
 export type AICopyOutput = z.infer<typeof AICopyOutputSchema>;
 export type AIRecycleOutput = z.infer<typeof AIRecycleOutputSchema>;
 export type AIDirectionOutput = z.infer<typeof AIDirectionOutputSchema>;
+export type AIDirectionInput = z.infer<typeof AIDirectionInputSchema>;
+export type GraphicElement = z.infer<typeof GraphicElementSchema>;
+export type Shot = z.infer<typeof ShotSchema>;
+export type Typography = z.infer<typeof TypographySchema>;
 export type ConversationMessageInput = z.infer<typeof ConversationMessageInputSchema>;
 export type ConsolidateInput = z.infer<typeof ConsolidateInputSchema>;
 export type GenerateStageInput = z.infer<typeof GenerateStageInputSchema>;
