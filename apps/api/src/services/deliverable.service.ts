@@ -129,10 +129,11 @@ export function toMarkdown(d: Deliverable): string {
     lines.push('**Tipo:** Estático (post/carrossel)', '');
     if (d.format) lines.push(`**Formato:** ${d.format.replace(/_/g, ' ')}`, '');
     if (d.graphicElements.length) {
-      lines.push('## Elementos gráficos');
+      const single = d.graphicElements.length === 1;
+      lines.push(single ? '## Imagem' : '## Elementos gráficos (carrossel)');
       d.graphicElements.forEach((g, i) => {
         lines.push(
-          `### Slide ${g.slide ?? i + 1}`,
+          single ? '### Imagem única' : `### Slide ${g.slide ?? i + 1}`,
           g.headline ? `**Título:** ${g.headline}` : '',
           g.body ? `**Texto:** ${g.body}` : '',
           g.visual ? `**Visual:** ${g.visual}` : '',

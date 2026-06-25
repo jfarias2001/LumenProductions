@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ContentType, Pillar, SignalSource, Stage, STAGE_LABELS } from '@content-engine/shared';
+import { ContentType, StaticFormat, Pillar, SignalSource, Stage, STAGE_LABELS } from '@content-engine/shared';
 import { useCreateCard } from '../../hooks/useBoard.js';
-import { PILLAR_LABELS, SIGNAL_LABELS, CONTENT_TYPE_LABELS } from '../../lib/labels.js';
+import { PILLAR_LABELS, SIGNAL_LABELS, CONTENT_TYPE_LABELS, STATIC_FORMAT_LABELS } from '../../lib/labels.js';
 
 interface Props {
   onClose: () => void;
@@ -14,6 +14,7 @@ export default function CreateCardModal({ onClose }: Props) {
   const [title, setTitle] = useState('');
   const [stage, setStage] = useState<Stage>(Stage.SINAIS_MERCADO);
   const [contentType, setContentType] = useState<ContentType>(ContentType.VIDEO);
+  const [staticFormat, setStaticFormat] = useState<StaticFormat>(StaticFormat.IMAGEM_UNICA);
   const [pillar, setPillar] = useState<string>('');
   const [signalSource, setSignalSource] = useState<string>('');
   const [signalContent, setSignalContent] = useState('');
@@ -29,6 +30,7 @@ export default function CreateCardModal({ onClose }: Props) {
         title: title.trim(),
         stage,
         contentType,
+        ...(contentType === ContentType.ESTATICO ? { staticFormat } : {}),
         ...(pillar ? { pillar } : {}),
         ...(isSignal && signalSource ? { signalSource } : {}),
         ...(isSignal && signalContent ? { signalContent } : {}),
@@ -71,6 +73,27 @@ export default function CreateCardModal({ onClose }: Props) {
               ))}
             </div>
           </div>
+
+          {contentType === ContentType.ESTATICO && (
+            <div>
+              <label className="label-base">Formato do estático</label>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.values(StaticFormat).map((f) => (
+                  <button
+                    type="button"
+                    key={f}
+                    onClick={() => setStaticFormat(f)}
+                    className={`text-sm rounded-lg border px-3 py-2 transition-colors ${
+                      staticFormat === f ? 'border-brand-500 bg-brand-600/15 text-brand-200' : 'border-surface-700 text-slate-400 hover:border-surface-600'
+                    }`}
+                  >
+                    {STATIC_FORMAT_LABELS[f]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">Imagem única = uma só arte. Carrossel = vários slides.</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

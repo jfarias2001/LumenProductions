@@ -15,8 +15,11 @@ import {
   AICalendarOutputSchema,
   GOLDEN_RULE_PROMPT,
   MIX_TARGETS,
+  MIN_HOOKS_TO_ADVANCE,
   ContentType,
+  StaticFormat,
   Stage,
+  STAGE_ORDER,
   type AIProspectOutput,
   type AIStructureOutput,
   type AIValidateOutput,
@@ -33,6 +36,15 @@ import { Prisma } from '@prisma/client';
 import { calculateValidation } from './validation.service.js';
 import { transcript, appendGeneratedTurn } from './conversation.service.js';
 import { buildCompanyContext } from './company.service.js';
+import { pipelineService } from './pipeline.service.js';
+import { emitBoard } from '../lib/emitter.js';
+
+/**
+ * Contexto fixo: todo conteúdo é produzido para o Instagram (PRD-007). Injeta o
+ * formato nativo nas gerações que descrevem a peça (direção, copy, calendário).
+ */
+const INSTAGRAM_CONTEXT =
+  'Todo conteúdo é publicado no INSTAGRAM: VÍDEO = Reels verticais 9:16; ESTÁTICO = feed 4:5 ou 1:1 (imagem única) ou carrossel de até 10 cards. Pense e produza nativamente para esse contexto.';
 
 /** Custo estimado (USD) bem aproximado p/ gpt-4o-mini — apenas observabilidade. */
 const COST_PER_1K = { input: 0.00015, output: 0.0006 };
@@ -197,7 +209,7 @@ export async function copy(cardId: string, createdById?: string, conversation?: 
     angulos: card.angles.map((a) => a.text),
     hooks: card.hooks.map((h) => h.text),
   };
-  const system = `${await goldenRule()}\nVocê escreve roteiro de Reel (30–45s) seguindo a Regra de Ouro, mais legenda e CTAs.`;
+  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\nVocê escreve roteiro de Reel (30–45s) seguindo a Regra de Ouro, mais legenda e CTAs.`;
   const user = `${dataBlock('Card', JSON.stringify(ctx))}${convoBlock(conversation)}
 
 Escreva o roteiro estruturado (dor, quebra, mecanismo, beneficio, cta), textos de tela curtos, uma legenda e variações de CTA.
@@ -229,31 +241,42 @@ export async function direction(cardId: string, createdById?: string, conversati
     include: { script: true, hooks: { where: { status: 'ESCOLHIDO' } } },
   });
   const isStatic = card.contentType === ContentType.ESTATICO;
+  // Estático: imagem única (default) vs. carrossel (PRD-007).
+  const isCarrossel = isStatic && card.staticFormat === StaticFormat.CARROSSEL;
   const ctx = {
     title: card.title,
     pain: card.pain,
     promise: card.promise,
     contentType: card.contentType,
+    formatoEstatico: isStatic ? (isCarrossel ? 'CARROSSEL' : 'IMAGEM_UNICA') : undefined,
     roteiro: card.script,
     hooks: card.hooks.map((h) => h.text),
   };
 
-  const system = `${await goldenRule()}\nVocê é diretor(a) de arte e produção. Entregue uma direção criativa PRONTA PARA EXECUTAR — específica e acionável, sem generalidades. ${
+  const staticDirective = isCarrossel
+    ? 'O conteúdo é um CARROSSEL de Instagram (post estático com vários cards/slides, até 10): detalhe slide a slide os elementos visuais, a disposição na tela, fontes, tamanhos e cores.'
+    : 'O conteúdo é uma IMAGEM ÚNICA de Instagram (UM só post estático, NÃO é carrossel nem sequência de slides): descreva a composição dessa imagem única.';
+  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\nVocê é diretor(a) de arte e produção. Entregue uma direção criativa PRONTA PARA EXECUTAR — específica e acionável, sem generalidades. ${
     isStatic
-      ? 'O conteúdo é ESTÁTICO (post/carrossel): detalhe slide a slide os elementos visuais, a disposição na tela, fontes, tamanhos e cores.'
-      : 'O conteúdo é VÍDEO (Reel): detalhe a decupagem cena a cena, a direção de fala/entonação e os insights de edição.'
+      ? staticDirective
+      : 'O conteúdo é VÍDEO (Reel vertical 9:16): detalhe a decupagem cena a cena, a direção de fala/entonação e os insights de edição.'
   }`;
+
+  let staticInstructions: string;
+  if (!isStatic) {
+    staticInstructions = `Para VÍDEO, preencha "shotList" — uma cena por item — com: "scene" (descrição), "durationSec", "visual" (enquadramento/b-roll), "screenText" (texto que aparece na tela) e "voiceover" (a fala exata). Preencha também "voiceTone" (direção de entonação/ritmo da fala) e "editingInsights" (cortes, ritmo, transições, trilha). Deixe "graphicElements" como [].`;
+  } else if (isCarrossel) {
+    staticInstructions = `Para CARROSSEL, preencha "graphicElements" — UM item por slide (de 2 a 10 slides) — com: "slide" (número), "headline", "body", "visual" (imagem/ícone/gráfico), "layout" (COMO dispor os elementos na tela, ex.: "título no topo centralizado, dado em destaque no centro, CTA no rodapé"), "font", "fontSize" (ex.: "título 72px, corpo 36px") e "colors". Deixe "shotList" e "editingInsights" como [].`;
+  } else {
+    staticInstructions = `Para IMAGEM ÚNICA, preencha "graphicElements" com EXATAMENTE UM item (a peça é uma única imagem — NÃO crie slides nem sequência): "slide":1, "headline", "body", "visual" (a imagem/ícone/gráfico principal), "layout" (COMO dispor todos os elementos NA MESMA imagem, ex.: "título no topo, dado em destaque no centro, logo+CTA no rodapé"), "font", "fontSize" e "colors". Deixe "shotList" e "editingInsights" como [].`;
+  }
 
   const formatos = 'PESSOA_FALANDO, PRINTS_PROCESSO, POV_DONO_AGENCIA, ANTES_DEPOIS, CHECKLIST, STORYTELLING, COMPARATIVO, TREND_ADAPTADA, SIMULACAO_CONVERSA, DEMONSTRACAO_PRODUTO';
   const user = `${dataBlock('Card', JSON.stringify(ctx))}${convoBlock(conversation)}
 
 Escolha um "format" entre: ${formatos}.
 Sempre preencha "typography" ({headingFont, bodyFont, notes}) com fontes concretas (ex.: "Montserrat Bold", "Inter Regular") e "palette" (cores/estilo, com códigos hex quando possível).
-${
-    isStatic
-      ? `Para ESTÁTICO, preencha "graphicElements" — um item por slide/elemento — com: "headline", "body", "visual" (imagem/ícone/gráfico), "layout" (COMO dispor os elementos na tela, ex.: "título no topo centralizado, dado em destaque no centro, CTA no rodapé"), "font", "fontSize" (ex.: "título 72px, corpo 36px") e "colors". Deixe "shotList" e "editingInsights" como [].`
-      : `Para VÍDEO, preencha "shotList" — uma cena por item — com: "scene" (descrição), "durationSec", "visual" (enquadramento/b-roll), "screenText" (texto que aparece na tela) e "voiceover" (a fala exata). Preencha também "voiceTone" (direção de entonação/ritmo da fala) e "editingInsights" (cortes, ritmo, transições, trilha). Deixe "graphicElements" como [].`
-  }
+${staticInstructions}
 Responda APENAS JSON: {"format":"...","visualNotes":"...","palette":"...","typography":{"headingFont":"...","bodyFont":"...","notes":"..."},"voiceTone":"...","editingInsights":["..."],"shotList":[{"scene":"...","durationSec":5,"visual":"...","screenText":"...","voiceover":"..."}],"graphicElements":[{"slide":1,"headline":"...","body":"...","visual":"...","layout":"...","font":"...","fontSize":"...","colors":"..."}]}`;
 
   return run({ type: 'direction', cardId, createdById, system, user, schema: AIDirectionOutputSchema, schemaName: 'direction', temperature: 0.6 });
@@ -454,6 +477,106 @@ export async function generateStage(
   return result;
 }
 
+// ── Auto-produção de um card (PRD-007) ────────────────────────────────────────────
+/**
+ * Preenche TODAS as entidades criativas de um card recém-criado — validação (sugestão),
+ * ângulos+hooks (com seleção automática), roteiro+copy e direção criativa — deixando a
+ * peça pronta para produção. Reusa as funções de IA por tarefa (cada uma registra AIJob).
+ * Não altera o pipeline: a validação entra como sugestão (sem reviewedById).
+ */
+export async function autoProduceCard(cardId: string, userId?: string): Promise<void> {
+  // 1. Validação (entra como sugestão; o gate continua exigindo confirmação humana).
+  const vOut = await validate(cardId, userId);
+  const scores = {
+    dorQuente: vOut.dorQuente,
+    clareza: vOut.clareza,
+    contraste: vOut.contraste,
+    especificidadeAgencia: vOut.especificidadeAgencia,
+    potencialComentarios: vOut.potencialComentarios,
+    potencialComercial: vOut.potencialComercial,
+  };
+  const { total, verdict } = calculateValidation(scores);
+  await prisma.validation.upsert({
+    where: { cardId },
+    update: { ...scores, total, verdict, aiJustifications: vOut.justificativas, aiSuggested: true, reviewedById: null },
+    create: { cardId, ...scores, total, verdict, aiJustifications: vOut.justificativas, aiSuggested: true },
+  });
+
+  // 2. Ângulos + hooks, com seleção automática (prepara os gates a jusante).
+  const aOut = await angles(cardId, userId);
+  if (aOut.angles.length) {
+    await prisma.angle.createMany({
+      data: aOut.angles.map((a, i) => ({ cardId, type: a.type, text: a.text, selected: i === 0, aiGenerated: true })),
+    });
+  }
+  if (aOut.hooks.length) {
+    await prisma.hook.createMany({
+      data: aOut.hooks.map((h, i) => ({
+        cardId,
+        text: h,
+        status: i < MIN_HOOKS_TO_ADVANCE ? ('ESCOLHIDO' as const) : ('EM_TESTE' as const),
+        aiGenerated: true,
+      })),
+    });
+  }
+
+  // 3. Roteiro + copy (lê o ângulo selecionado e os hooks escolhidos do passo 2).
+  const cOut = await copy(cardId, userId);
+  await prisma.script.upsert({
+    where: { cardId },
+    update: { ...cOut.script, aiGenerated: true },
+    create: { cardId, ...cOut.script, aiGenerated: true },
+  });
+  await prisma.copyContent.upsert({
+    where: { cardId },
+    update: { caption: cOut.caption, ctaVariations: cOut.ctaVariations, aiGenerated: true },
+    create: { cardId, caption: cOut.caption, ctaVariations: cOut.ctaVariations, aiGenerated: true },
+  });
+  if (cOut.screenTexts.length) {
+    await prisma.card.update({ where: { id: cardId }, data: { screenTexts: cOut.screenTexts } });
+  }
+
+  // 4. Direção criativa (respeita imagem única vs. carrossel).
+  const dOut = await direction(cardId, userId);
+  await persistDirection(cardId, dOut);
+}
+
+const ADVANCE_INCLUDE = {
+  validation: true,
+  angles: true,
+  hooks: true,
+  script: true,
+  creative: true,
+  copy: true,
+  schedule: true,
+  retentionReview: true,
+  checklistItems: true,
+  metricSnapshots: { select: { id: true } },
+} as const;
+
+/**
+ * Avança o card o máximo que os gates permitirem (PRD-007). Para no primeiro gate
+ * bloqueado — na prática, em IDEIAS_VALIDADAS, pois avançar para ÂNGULO exige a
+ * confirmação humana da validação (reviewedById). Não pula etapas nem altera o
+ * PipelineService. Retorna o estágio final.
+ */
+export async function advanceWhilePossible(cardId: string, userId?: string): Promise<Stage> {
+  for (let guard = 0; guard < STAGE_ORDER.length; guard++) {
+    const card = await prisma.card.findUniqueOrThrow({ where: { id: cardId }, include: ADVANCE_INCLUDE });
+    const idx = STAGE_ORDER.indexOf(card.stage as Stage);
+    const next = STAGE_ORDER[idx + 1];
+    if (!next || next === Stage.ARQUIVADO) break;
+    const check = pipelineService.canTransition(card as Parameters<typeof pipelineService.canTransition>[0], next);
+    if (!check.allowed) break;
+    await prisma.cardStageHistory.updateMany({ where: { cardId, exitedAt: null }, data: { exitedAt: new Date() } });
+    await prisma.card.update({ where: { id: cardId }, data: { stage: next } });
+    await prisma.cardStageHistory.create({ data: { cardId, stage: next, byUserId: userId ?? null } });
+    emitBoard('card.moved', { id: cardId, from: card.stage, to: next });
+  }
+  const final = await prisma.card.findUniqueOrThrow({ where: { id: cardId }, select: { stage: true } });
+  return final.stage as Stage;
+}
+
 // ── 8. Calendário editorial (PRD-005) ────────────────────────────────────────────
 /**
  * Gera uma sequência ENCADEADA de posts/reels para engajar ao longo do período.
@@ -469,6 +592,7 @@ export async function generateCalendar(
   const tiposPermitidos = input.contentTypes.join(', ');
 
   const system = `${await goldenRule()}
+${INSTAGRAM_CONTEXT}
 Você é estrategista de conteúdo e monta CALENDÁRIOS EDITORIAIS para Instagram (Reels e posts estáticos).
 Princípios:
 - Cada peça segue a Regra de Ouro (dor → falha do processo → mecanismo → posicionamento da Lumen).
@@ -490,8 +614,9 @@ Princípios:
 Gere EXATAMENTE ${total} itens (${input.postsPerWeek} por semana, ${input.weeks} semanas), numerando a semana (1..${input.weeks}).
 Pilares válidos: DOR_DONO_AGENCIA, QUEBRA_CRENCA, OPORTUNIDADE_TICKET, PRODUTO_MECANISMO, PROVA_BASTIDORES, OBJECOES, AUTORIDADE.
 contentType deve ser um dos permitidos: ${tiposPermitidos}.
+Quando contentType for ESTATICO, defina "staticFormat": "IMAGEM_UNICA" (padrão — uma única imagem) ou "CARROSSEL" (só quando a mensagem realmente exigir vários slides, ex.: passo a passo, listas, antes/depois). Prefira IMAGEM_UNICA. Para VIDEO, omita "staticFormat".
 format (opcional): PESSOA_FALANDO, PRINTS_PROCESSO, POV_DONO_AGENCIA, ANTES_DEPOIS, CHECKLIST, STORYTELLING, COMPARATIVO, TREND_ADAPTADA, SIMULACAO_CONVERSA, DEMONSTRACAO_PRODUTO.
-Responda APENAS JSON: {"theme":"fio condutor geral","items":[{"week":1,"title":"hook/título","pillar":"DOR_DONO_AGENCIA","contentType":"VIDEO","format":"PESSOA_FALANDO","persona":"...","pain":"...","promise":"objetivo da peça","connection":"como conecta na sequência"}]}`;
+Responda APENAS JSON: {"theme":"fio condutor geral","items":[{"week":1,"title":"hook/título","pillar":"DOR_DONO_AGENCIA","contentType":"VIDEO","format":"PESSOA_FALANDO","staticFormat":"IMAGEM_UNICA","persona":"...","pain":"...","promise":"objetivo da peça","connection":"como conecta na sequência"}]}`;
 
   return run({
     type: 'calendar',

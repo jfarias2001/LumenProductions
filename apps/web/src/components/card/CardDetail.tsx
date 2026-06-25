@@ -808,13 +808,13 @@ function DirecaoTab({ cardId, card }: { cardId: string; card: Rec }) {
         </Field>
       )}
 
-      {/* ESTÁTICO — elementos gráficos detalhados */}
+      {/* ESTÁTICO — elementos gráficos detalhados (imagem única = 1; carrossel = N) */}
       {graphics.length > 0 && (
-        <Field label="Elementos gráficos (estático)">
+        <Field label={graphics.length === 1 ? 'Imagem (estático)' : 'Elementos gráficos (carrossel)'}>
           <div className="space-y-2">
             {graphics.map((g, i) => (
               <div key={i} className="surface-card bg-surface-850 p-2.5">
-                <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-0.5">Slide {String(g.slide ?? i + 1)}</p>
+                <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-0.5">{graphics.length === 1 ? 'Imagem única' : `Slide ${String(g.slide ?? i + 1)}`}</p>
                 {g.headline ? <p className="text-sm text-slate-100 font-medium">{String(g.headline)}</p> : null}
                 {g.body ? <p className="text-sm text-slate-300 whitespace-pre-wrap">{String(g.body)}</p> : null}
                 {g.visual ? <p className="text-xs text-slate-400 mt-0.5">🖼 Visual: {String(g.visual)}</p> : null}

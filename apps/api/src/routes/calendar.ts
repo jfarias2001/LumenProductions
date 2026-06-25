@@ -68,6 +68,23 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.post(
+    '/calendars/:id/auto-produce',
+    { preHandler: [requirePermission('useAI')] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      try {
+        return await calendarService.autoProduceCalendar(id, request.actor.sub);
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === 'NOT_FOUND') {
+          return reply.status(404).send({ error: { code, message: (err as Error).message } });
+        }
+        return aiError(reply, err);
+      }
+    },
+  );
+
   fastify.delete('/calendars/:id', { preHandler: [requirePermission('manageCompany')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     await calendarService.remove(id);

@@ -1,5 +1,5 @@
 /** Rótulos e classes de cor (tema dark) para enums de domínio. */
-import { Pillar, AwarenessLevel, ContentClass, ContentType, ValidationVerdict, SignalSource, AngleType, DerivedAssetType, CreativeFormat } from '@content-engine/shared';
+import { Pillar, AwarenessLevel, ContentClass, ContentType, StaticFormat, ValidationVerdict, SignalSource, AngleType, DerivedAssetType, CreativeFormat } from '@content-engine/shared';
 
 export const FORMAT_LABELS: Record<string, string> = {
   [CreativeFormat.PESSOA_FALANDO]: 'Pessoa falando',
@@ -17,6 +17,11 @@ export const FORMAT_LABELS: Record<string, string> = {
 export const CONTENT_TYPE_LABELS: Record<string, string> = {
   [ContentType.VIDEO]: 'Vídeo (Reel)',
   [ContentType.ESTATICO]: 'Estático (post/carrossel)',
+};
+
+export const STATIC_FORMAT_LABELS: Record<string, string> = {
+  [StaticFormat.IMAGEM_UNICA]: 'Imagem única',
+  [StaticFormat.CARROSSEL]: 'Carrossel',
 };
 
 export const PILLAR_LABELS: Record<string, string> = {

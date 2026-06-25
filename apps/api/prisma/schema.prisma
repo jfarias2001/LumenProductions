@@ -123,6 +123,11 @@ enum ContentType {
   ESTATICO
 }
 
+enum StaticFormat {
+  IMAGEM_UNICA
+  CARROSSEL
+}
+
 // ── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -142,6 +147,7 @@ model Card {
   id             String         @id @default(cuid())
   stage          Stage          @default(SINAIS_MERCADO)
   contentType    ContentType    @default(VIDEO)
+  staticFormat   StaticFormat?
   title          String
   persona        String?
   pain           String?
@@ -508,6 +514,7 @@ model EditorialCalendarItem {
   title        String
   pillar       Pillar?
   contentType  ContentType       @default(VIDEO)
+  staticFormat StaticFormat?
   format       CreativeFormat?
   persona      String?
   pain         String?

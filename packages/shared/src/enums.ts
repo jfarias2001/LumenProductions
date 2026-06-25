@@ -152,6 +152,15 @@ export enum ContentType {
 }
 
 /**
+ * Sub-formato de um conteúdo ESTÁTICO no Instagram (PRD-007).
+ * IMAGEM_UNICA (default) = uma só composição/imagem; CARROSSEL = sequência de slides (até 10).
+ */
+export enum StaticFormat {
+  IMAGEM_UNICA = 'IMAGEM_UNICA',
+  CARROSSEL = 'CARROSSEL',
+}
+
+/**
  * Fases criativas que têm conversa com a IA (PRD-003 §5.1).
  * As demais etapas (gravação, agendamento, distribuição, análise) não abrem chat.
  */

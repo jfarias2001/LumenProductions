@@ -4,6 +4,7 @@ import {
   AngleType,
   ContentClass,
   ContentType,
+  StaticFormat,
   CreativeFormat,
   DerivedAssetType,
   HookStatus,
@@ -46,6 +47,7 @@ export const CreateCardSchema = z.object({
   title: z.string().min(3).max(300),
   stage: z.nativeEnum(Stage).default(Stage.SINAIS_MERCADO),
   contentType: z.nativeEnum(ContentType).default(ContentType.VIDEO),
+  staticFormat: z.nativeEnum(StaticFormat).optional(),
   signalSource: z.nativeEnum(SignalSource).optional(),
   signalContent: z.string().max(2000).optional(),
   signalLink: z.string().url().optional(),
@@ -57,6 +59,7 @@ export const CreateCardSchema = z.object({
 export const UpdateCardSchema = z.object({
   title: z.string().min(3).max(300).optional(),
   contentType: z.nativeEnum(ContentType).optional(),
+  staticFormat: z.nativeEnum(StaticFormat).optional(),
   persona: z.string().max(500).optional(),
   pain: z.string().max(1000).optional(),
   promise: z.string().max(500).optional(),
@@ -558,6 +561,14 @@ const FormatLoose = z.preprocess(
   z.nativeEnum(CreativeFormat).optional(),
 );
 
+const StaticFormatLoose = z.preprocess(
+  coerceEnum(StaticFormat, {
+    [StaticFormat.IMAGEM_UNICA]: ['imagem', 'unica', 'single', 'image', 'foto', 'post'],
+    [StaticFormat.CARROSSEL]: ['carrossel', 'carousel', 'slides', 'sequencia'],
+  }),
+  z.nativeEnum(StaticFormat).optional(),
+);
+
 /** Item devolvido pela IA (datas são calculadas no backend). */
 export const AICalendarItemSchema = z.object({
   week: z.number().int().min(1).default(1),
@@ -565,6 +576,7 @@ export const AICalendarItemSchema = z.object({
   pillar: PillarLoose,
   contentType: ContentTypeLoose,
   format: FormatLoose,
+  staticFormat: StaticFormatLoose,
   persona: z.string().optional(),
   pain: z.string().optional(),
   promise: z.string().optional(),

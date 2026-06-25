@@ -8,7 +8,12 @@ import type { GenerateCalendarInput, AICalendarItem } from '@content-engine/shar
 import { Stage } from '@content-engine/shared';
 import { prisma } from '../lib/prisma.js';
 import { emitBoard } from '../lib/emitter.js';
-import { generateCalendar as aiGenerateCalendar } from './ai.service.js';
+import { getAIProvider } from '../lib/ai/provider.js';
+import {
+  generateCalendar as aiGenerateCalendar,
+  autoProduceCard,
+  advanceWhilePossible,
+} from './ai.service.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -75,6 +80,7 @@ export async function generateAndSave(input: GenerateCalendarInput, userId?: str
           title: p.title.slice(0, 290),
           pillar: p.pillar ?? null,
           contentType: p.contentType ?? input.contentTypes[0],
+          staticFormat: p.staticFormat ?? null,
           format: p.format ?? null,
           persona: p.persona ?? null,
           pain: p.pain ?? null,
@@ -125,6 +131,7 @@ export async function sendItemToPipeline(calendarId: string, itemId: string, use
       title: item.title.slice(0, 290),
       stage: Stage.IDEIAS_BRUTAS,
       contentType: item.contentType,
+      staticFormat: item.staticFormat ?? null,
       pillar: item.pillar ?? null,
       persona: item.persona ?? null,
       pain: item.pain ?? null,
@@ -136,4 +143,69 @@ export async function sendItemToPipeline(calendarId: string, itemId: string, use
   emitBoard('card.created', card);
 
   return { card, created: true };
+}
+
+export interface AutoProduceResult {
+  produced: number;
+  skipped: number;
+  failed: number;
+  errors: Array<{ itemId: string; title: string; message: string }>;
+}
+
+/**
+ * Auto-produção em lote (PRD-007): para cada item SEM card, cria o card, gera o pacote
+ * criativo completo (autoProduceCard) e avança o card o máximo que os gates permitirem.
+ * Idempotente — itens com card são pulados. Falha em um item não derruba os demais.
+ */
+export async function autoProduceCalendar(calendarId: string, userId?: string): Promise<AutoProduceResult> {
+  // Falha cedo e clara se a IA não estiver configurada (a rota traduz para 503).
+  getAIProvider();
+
+  const calendar = await prisma.editorialCalendar.findUnique({
+    where: { id: calendarId },
+    include: { items: { orderBy: { position: 'asc' } } },
+  });
+  if (!calendar) {
+    throw Object.assign(new Error('Calendário não encontrado.'), { code: 'NOT_FOUND' });
+  }
+
+  const result: AutoProduceResult = { produced: 0, skipped: 0, failed: 0, errors: [] };
+
+  for (const item of calendar.items) {
+    if (item.cardId) {
+      result.skipped++;
+      continue;
+    }
+    try {
+      const card = await prisma.card.create({
+        data: {
+          title: item.title.slice(0, 290),
+          stage: Stage.IDEIAS_BRUTAS,
+          contentType: item.contentType,
+          staticFormat: item.staticFormat ?? null,
+          pillar: item.pillar ?? null,
+          persona: item.persona ?? null,
+          pain: item.pain ?? null,
+          promise: item.promise ?? null,
+        },
+      });
+      await prisma.cardStageHistory.create({ data: { cardId: card.id, stage: card.stage, byUserId: userId ?? null } });
+      await prisma.editorialCalendarItem.update({ where: { id: item.id }, data: { cardId: card.id } });
+
+      await autoProduceCard(card.id, userId);
+      await advanceWhilePossible(card.id, userId);
+
+      emitBoard('card.created', card);
+      result.produced++;
+    } catch (err) {
+      result.failed++;
+      result.errors.push({
+        itemId: item.id,
+        title: item.title,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return result;
 }

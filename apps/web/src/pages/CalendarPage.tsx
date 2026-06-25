@@ -5,11 +5,12 @@ import {
   useCalendar,
   useGenerateCalendar,
   useSendCalendarItem,
+  useAutoProduceCalendar,
   useDeleteCalendar,
   type CalendarItem,
 } from '../hooks/useCalendar.js';
 import { useAIStatus } from '../hooks/useAI.js';
-import { PILLAR_LABELS, PILLAR_BADGE, FORMAT_LABELS, CONTENT_TYPE_LABELS } from '../lib/labels.js';
+import { PILLAR_LABELS, PILLAR_BADGE, FORMAT_LABELS, CONTENT_TYPE_LABELS, STATIC_FORMAT_LABELS } from '../lib/labels.js';
 import AppHeader from '../components/AppHeader.js';
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -59,6 +60,7 @@ function ItemCard({ item, calendarId }: { item: CalendarItem; calendarId: string
       <div className="flex flex-wrap gap-1.5">
         {item.pillar && <span className={`badge ${PILLAR_BADGE[item.pillar]}`}>{PILLAR_LABELS[item.pillar]}</span>}
         {item.format && <span className="badge bg-surface-700 text-slate-400">{FORMAT_LABELS[item.format]}</span>}
+        {item.staticFormat && <span className="badge bg-surface-700 text-slate-400">{STATIC_FORMAT_LABELS[item.staticFormat]}</span>}
       </div>
       {item.connection && <p className="text-[11px] text-slate-400 italic">🔗 {item.connection}</p>}
       <div className="pt-1">
@@ -74,10 +76,13 @@ function ItemCard({ item, calendarId }: { item: CalendarItem; calendarId: string
   );
 }
 
-function CalendarDetailView({ id }: { id: string }) {
+function CalendarDetailView({ id, aiOff }: { id: string; aiOff: boolean }) {
   const { data, isLoading } = useCalendar(id);
+  const autoProduce = useAutoProduceCalendar(id);
   if (isLoading || !data) return <p className="text-slate-500 text-sm">Carregando calendário…</p>;
 
+  const pending = data.items.filter((it) => !it.cardId).length;
+  const result = autoProduce.data;
   const weeks = Array.from({ length: data.weeks }, (_, i) => i + 1);
   const itemsByWeek = (w: number) => {
     const start = new Date(data.startDate).getTime() + (w - 1) * 7 * 86400000;
@@ -95,6 +100,28 @@ function CalendarDetailView({ id }: { id: string }) {
         <p className="text-sm text-slate-400">{data.objective}</p>
         {data.theme && <p className="text-sm text-ai-300">🧵 Fio condutor: {data.theme}</p>}
         <MixBar items={data.items} />
+        <div className="pt-2 border-t border-surface-700 space-y-1.5">
+          <button
+            onClick={() => autoProduce.mutate()}
+            disabled={autoProduce.isPending || aiOff || pending === 0}
+            className="btn-ai text-sm w-full"
+            title={aiOff ? 'IA indisponível' : pending === 0 ? 'Todos os itens já têm card' : ''}
+          >
+            {autoProduce.isPending ? 'Produzindo tudo… (pode levar alguns minutos)' : `✦ Produzir tudo com IA (${pending} ${pending === 1 ? 'item' : 'itens'})`}
+          </button>
+          <p className="text-[10px] text-slate-500">
+            Cria o card de cada item sem card, gera ideia → ângulos/hooks → roteiro → direção → copy e avança até a validação (que continua exigindo revisão humana).
+          </p>
+          {autoProduce.isError && <p className="text-[11px] text-rose-300">{(autoProduce.error as Error)?.message ?? 'Falha na auto-produção.'}</p>}
+          {result && (
+            <div className="text-[11px] text-slate-300 space-y-0.5">
+              <p className="text-emerald-400">✓ {result.produced} produzido(s) · {result.skipped} já no pipeline · {result.failed} falha(s).</p>
+              {result.errors.map((e) => (
+                <p key={e.itemId} className="text-rose-300">• {e.title}: {e.message}</p>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       {weeks.map((w) => {
         const weekItems = itemsByWeek(w);
@@ -222,7 +249,7 @@ export default function CalendarPage() {
           {/* Coluna direita: detalhe */}
           <div>
             {selectedId ? (
-              <CalendarDetailView id={selectedId} />
+              <CalendarDetailView id={selectedId} aiOff={!!aiOff} />
             ) : (
               <div className="surface-card p-8 text-center text-slate-500 text-sm">
                 Gere um calendário ou selecione um existente para ver a sequência de posts.

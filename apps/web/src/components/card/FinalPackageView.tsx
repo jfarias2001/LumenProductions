@@ -82,11 +82,11 @@ export default function FinalPackageView({ cardId }: Props) {
         <>
           {data.format && <Section title="Formato"><span className="badge bg-brand-600/20 text-brand-300">{data.format.replace(/_/g, ' ')}</span></Section>}
           {data.graphicElements.length > 0 ? (
-            <Section title="Elementos gráficos">
+            <Section title={data.graphicElements.length === 1 ? 'Imagem' : 'Elementos gráficos (carrossel)'}>
               <div className="space-y-2">
                 {data.graphicElements.map((g, i) => (
                   <div key={i} className="surface-card bg-surface-850 p-3">
-                    <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-1">Slide {g.slide ?? i + 1}</p>
+                    <p className="text-[11px] font-semibold text-brand-300/80 uppercase mb-1">{data.graphicElements.length === 1 ? 'Imagem única' : `Slide ${g.slide ?? i + 1}`}</p>
                     {g.headline && <p className="text-sm text-slate-100 font-medium">{g.headline}</p>}
                     {g.body && <p className="text-sm text-slate-300 whitespace-pre-wrap">{g.body}</p>}
                     {g.visual && <p className="text-xs text-slate-400 mt-1">🖼 Visual: {g.visual}</p>}
