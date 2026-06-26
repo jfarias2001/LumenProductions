@@ -344,6 +344,24 @@ Etapas com gate de checklist (PRONTO_PARA_GRAVAR, EM_EDICAO, EM_DISTRIBUICAO) j�
 
 ---
 
+## [2026-06-26] UX: confirmar validação avança sozinho + remoção do chat conversacional
+
+Correções/polimento (sem novo PRD) a partir de uso real.
+
+### Problemas relatados
+1. **Gate de validação travava sem saída.** Com veredito `MELHORAR_ANGULO` (total 9–12) o card não avançava de *Ideias Validadas → Ângulo Definido* e não havia ação para "melhorar" o que a IA pedia. O usuário queria que, **ao confirmar a validação, o card já seguisse automaticamente** para as próximas etapas.
+2. **Chat conversacional pesava a UI** e era pouco usado — o usuário usa só a geração com IA.
+
+### Correções
+- **Gate (`pipeline.service.ts`)** — `IDEIAS_VALIDADAS → ANGULO_DEFINIDO` deixou de exigir `verdict === SEGUIR_ROTEIRO`. Agora **a confirmação humana (`reviewedById`) é o gate**: ao confirmar, o humano assume a validação e libera o avanço independentemente da nota da IA (o veredito numérico vira referência, não bloqueio). Removido o import não usado `ValidationVerdict`.
+- **Auto-avanço (`CardDetail.tsx` → `ValidacaoTab`)** — o botão virou **"✓ Confirmar e avançar"**: após confirmar, dispara automaticamente a transição para a próxima fase (só quando o card está em `IDEIAS_VALIDADAS`). Texto do gate (`STAGE_META`) atualizado; mensagem inline se o avanço for bloqueado por algum gate.
+- **Remoção do chat** — novo componente leve **`StageGenerator.tsx`** (só "✦ Gerar com IA": textarea de contexto + resultado + fallback de IA off) substitui o `PhaseChat` embutido no fluxo. **`PhaseChat.tsx` removido.** Hooks `useConversation`/`useSendMessage`/`useConsolidate`/`usePromptTemplates` ficaram sem uso na UI (endpoints de chat/consolidação permanecem no backend, sem custo).
+
+### Estado
+- `pnpm --filter api typecheck` e `pnpm --filter web typecheck` OK. Sem migração e sem mudança em `packages/shared`.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

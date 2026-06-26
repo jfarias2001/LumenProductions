@@ -7,7 +7,7 @@ import { useCard, useArchiveCard, useTransitionCard, useConfirmValidation } from
 import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle, useAIDirection } from '../../hooks/useAI.js';
 import { PILLAR_LABELS, AWARENESS_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS, CLASS_BADGE, FORMAT_LABELS } from '../../lib/labels.js';
 import AICopilotButton from './AICopilotButton.js';
-import PhaseChat from './PhaseChat.js';
+import StageGenerator from './StageGenerator.js';
 import FinalPackageView from './FinalPackageView.js';
 
 interface Props {
@@ -22,7 +22,7 @@ const FLOW: Stage[] = STAGE_ORDER.filter((s) => s !== Stage.ARQUIVADO);
 const STAGE_META: Record<Stage, { job: string; gate: string }> = {
   [Stage.SINAIS_MERCADO]: { job: 'Capture o sinal de mercado que originou a ideia.', gate: 'Preencha a fonte e o conteúdo do sinal.' },
   [Stage.IDEIAS_BRUTAS]: { job: 'Lapide a ideia com o copiloto: dor central, persona e promessa.', gate: 'Defina um título claro (mín. 3 caracteres).' },
-  [Stage.IDEIAS_VALIDADAS]: { job: 'Valide o potencial da ideia (6 critérios, 0–3).', gate: 'Veredito SEGUIR_ROTEIRO (≥13) confirmado por um humano.' },
+  [Stage.IDEIAS_VALIDADAS]: { job: 'Valide o potencial da ideia (6 critérios, 0–3).', gate: 'Validação confirmada por um humano (a confirmação libera o avanço).' },
   [Stage.ANGULO_DEFINIDO]: { job: 'Explore ângulos narrativos e escolha o mais forte.', gate: 'Selecione ao menos 1 ângulo.' },
   [Stage.HOOKS_EM_TESTE]: { job: 'Gere e refine hooks de abertura (primeiros 2 segundos).', gate: 'Mínimo 5 hooks, com 1 marcado como ESCOLHIDO.' },
   [Stage.ROTEIRO]: { job: 'Escreva o roteiro: dor → quebra → mecanismo → benefício → CTA.', gate: 'Roteiro com as 5 seções e duração entre 30–45s.' },
@@ -221,7 +221,7 @@ function useCardInvalidate(cardId: string) {
 }
 
 function StagePanel({ stage, cardId, card, onUpdate }: { stage: Stage; cardId: string; card: Rec; onUpdate: (d: Rec) => void }) {
-  const copiloto = <PhaseChat cardId={cardId} currentStage={stage} embedded />;
+  const copiloto = <StageGenerator cardId={cardId} stage={stage} />;
   switch (stage) {
     case Stage.SINAIS_MERCADO:
       return <TemplateTab cardId={cardId} card={card} onUpdate={onUpdate} focus="signal" />;
@@ -421,13 +421,30 @@ function ValidacaoTab({ cardId, card }: { cardId: string; card: Rec }) {
   const v = card.validation as Rec | null | undefined;
   const validate = useAIValidate(cardId);
   const confirm = useConfirmValidation(cardId);
+  const transition = useTransitionCard();
+  const qc = useQueryClient();
+  const cardStage = card.stage as Stage;
+  const idx = STAGE_ORDER.indexOf(cardStage);
+  const nextStage = idx >= 0 && idx < STAGE_ORDER.length - 1 ? STAGE_ORDER[idx + 1]! : null;
   const SCORE_KEYS = ['dorQuente', 'clareza', 'contraste', 'especificidadeAgencia', 'potencialComentarios', 'potencialComercial'] as const;
   const handleConfirm = () => {
     if (!v) return;
     const scores: Record<string, number> = {};
     for (const k of SCORE_KEYS) scores[k] = Number(v[k] ?? 0);
-    confirm.mutate(scores);
+    // Ao confirmar, o humano assume a validação e o card já avança automaticamente
+    // para a próxima fase (a confirmação é o gate — o veredito numérico vira referência).
+    confirm.mutate(scores, {
+      onSuccess: () => {
+        if (cardStage === Stage.IDEIAS_VALIDADAS && nextStage && nextStage !== Stage.ARQUIVADO) {
+          transition.mutate(
+            { cardId, to: nextStage },
+            { onSuccess: () => { void qc.invalidateQueries({ queryKey: ['card', cardId] }); } },
+          );
+        }
+      },
+    });
   };
+  const busy = confirm.isPending || transition.isPending;
   return (
     <div className="space-y-4">
       <AICopilotButton label="Validar com IA" mutation={validate} hint="entra como sugestão; gate exige confirmação humana" />
@@ -443,16 +460,17 @@ function ValidacaoTab({ cardId, card }: { cardId: string; card: Rec }) {
           </div>
           {!v.reviewedById && (
             <div className="surface-card bg-surface-850 p-3 space-y-2">
-              <p className="text-xs text-slate-400">Revise as notas acima. Ao confirmar, você assume a validação como humano e libera o avanço da etapa.</p>
+              <p className="text-xs text-slate-400">Revise as notas acima. Ao confirmar, você assume a validação como humano e o card avança automaticamente para a próxima fase — independentemente do veredito da IA.</p>
               <button
                 type="button"
                 onClick={handleConfirm}
-                disabled={confirm.isPending}
+                disabled={busy}
                 className="btn-primary w-full disabled:opacity-50"
               >
-                {confirm.isPending ? 'Confirmando…' : '✓ Confirmar validação'}
+                {confirm.isPending ? 'Confirmando…' : transition.isPending ? 'Avançando…' : '✓ Confirmar e avançar'}
               </button>
               {confirm.isError && <p className="text-xs text-rose-400">Falha ao confirmar. Tente novamente.</p>}
+              {transition.isError && <p className="text-xs text-amber-300/90">Validação confirmada, mas o avanço foi bloqueado: {(transition.error as Error)?.message ?? 'gate de qualidade.'}</p>}
             </div>
           )}
           <div className="grid grid-cols-2 gap-2 text-xs">

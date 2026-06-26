@@ -7,7 +7,6 @@
 import {
   Stage,
   STAGE_ORDER,
-  ValidationVerdict,
   MIN_HOOKS_TO_ADVANCE,
 } from '@content-engine/shared';
 
@@ -107,9 +106,9 @@ export class PipelineService {
         if (from !== Stage.IDEIAS_VALIDADAS) break;
         const v = card.validation;
         if (!v) return err('GATE_NOT_PASSED', 'Pontuação de validação não preenchida.');
-        if (v.verdict !== ValidationVerdict.SEGUIR_ROTEIRO) {
-          return err('GATE_NOT_PASSED', `Veredito atual: ${v.verdict}. Necessário SEGUIR_ROTEIRO (total ≥ 13).`);
-        }
+        // A confirmação humana é o gate: ao confirmar, o humano assume a validação e
+        // libera o avanço — independentemente do veredito numérico da IA (a nota vira
+        // referência, não bloqueio).
         if (!v.reviewedById) {
           return err('GATE_NOT_PASSED', 'Validação precisa ser confirmada por um humano (reviewedById).');
         }
