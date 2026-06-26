@@ -380,6 +380,30 @@ Correções/polimento (sem novo PRD), continuação do item anterior. Relato do 
 
 ---
 
+## [2026-06-26] PRD-008 — Calendário por período + quantidade por tipo
+
+**Motivação (relato do usuário):** *"quero poder definir no calendário período de dias e quantos posts/carrosséis/vídeos — isso me daria mais flexibilidade na escolha dos conteúdos."* O gerador trabalhava com `semanas × posts/semana` + checkboxes de tipo, amarrando a cadência a um ritmo semanal fixo e sem dizer quantas peças de cada formato.
+
+**Decisões (travadas com o usuário):** período = **data início + data fim**; quantidades = **3 campos** (vídeos, posts/imagem única, carrosséis), total = soma; modo antigo **substituído totalmente** (sem semanas/posts-por-semana e sem checkboxes).
+
+### Shared (`packages/shared`)
+- `GenerateCalendarInputSchema` reescrito: `startDate` + `endDate` + `videoCount`/`postCount`/`carrosselCount` (`.min(0).max(60)`, default 0) + refines (total ≥1, total ≤60, fim ≥ início). Removidos `weeks`/`postsPerWeek`/`contentTypes`. `AICalendarItemSchema` mantido (campo `week` deixou de ser usado no planejamento).
+
+### Backend (`apps/api`)
+- **Prisma**: `EditorialCalendar` ganhou `endDate`/`videoCount`/`postCount`/`carrosselCount` e `weeks`/`postsPerWeek` viraram opcionais. Migration aditiva/idempotente `20260626000100_calendar_period` (add columns + drop NOT NULL).
+- **`ai.service.generateCalendar`**: prompt usa `total = videoCount+postCount+carrosselCount` e o nº de dias do período; pede exatamente N vídeos / M posts (IMAGEM_UNICA) / K carrosséis (CARROSSEL), distribuídos no período, narrativa conectada e mix-alvo. JSON de saída sem `week`.
+- **`calendar.service`**: `planDates` agora distribui uniformemente no intervalo `[startDate, endDate]` (`offset = round(i*spanDays/(total-1))`), preservando a ordem da IA; `generateAndSave` grava o período + contagens (fallback de `contentType` = VIDEO). `sendItemToPipeline`/`autoProduceCalendar` inalterados.
+
+### Frontend (`apps/web`)
+- `useCalendar`: `CalendarDetail`/`CalendarSummary` com `endDate`/`videoCount`/`postCount`/`carrosselCount`; `weeks`/`postsPerWeek` removidos.
+- `CalendarPage`: form com **Início + Fim** e 3 campos numéricos **Vídeos/Posts/Carrosséis** (removidos semanas, posts/sem e checkboxes); validação de período e teto de 60; total exibido = soma. Detalhe agrupa "Semana N" derivada do período (a partir do `scheduledFor` × `startDate`); lista mostra total + intervalo de datas.
+
+### Estado atual
+- Calendário definido por período de datas + quantidade explícita por formato; a IA gera exatamente a composição pedida, conectada e dentro do mix. Auto-produção e envio ao pipeline inalterados; gates do `PipelineService` intactos. Sem `OPENAI_API_KEY` → fallback claro.
+- `pnpm -r typecheck` OK nos 3 pacotes; `vite build` do web OK; `prisma generate` OK; `shared` rebuildado. Migration criada (aplicar com `prisma migrate deploy`).
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

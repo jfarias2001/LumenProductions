@@ -527,15 +527,26 @@ export const CompanyProfileSchema = z.object({
 });
 
 /** Input do usuário para gerar um calendário editorial. */
-export const GenerateCalendarInputSchema = z.object({
-  title: z.string().min(1).max(200),
-  objective: z.string().min(1).max(2000),
-  startDate: z.string().min(8), // ISO (yyyy-mm-dd)
-  weeks: z.number().int().min(1).max(12),
-  postsPerWeek: z.number().int().min(1).max(14),
-  contentTypes: z.array(z.nativeEnum(ContentType)).min(1).default([ContentType.VIDEO, ContentType.ESTATICO]),
-  notes: z.string().max(4000).optional(),
-});
+export const GenerateCalendarInputSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    objective: z.string().min(1).max(2000),
+    startDate: z.string().min(8), // ISO (yyyy-mm-dd)
+    endDate: z.string().min(8), // ISO (yyyy-mm-dd)
+    videoCount: z.number().int().min(0).max(60).default(0),
+    postCount: z.number().int().min(0).max(60).default(0),
+    carrosselCount: z.number().int().min(0).max(60).default(0),
+    notes: z.string().max(4000).optional(),
+  })
+  .refine((d) => d.videoCount + d.postCount + d.carrosselCount >= 1, {
+    message: 'Defina ao menos 1 conteúdo (vídeo, post ou carrossel).',
+  })
+  .refine((d) => d.videoCount + d.postCount + d.carrosselCount <= 60, {
+    message: 'O total de peças não pode passar de 60.',
+  })
+  .refine((d) => new Date(d.endDate) >= new Date(d.startDate), {
+    message: 'A data fim deve ser igual ou posterior à data início.',
+  });
 
 const ContentTypeLoose = z.preprocess(
   coerceEnum(ContentType, {

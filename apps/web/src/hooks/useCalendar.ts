@@ -24,8 +24,10 @@ export interface CalendarDetail {
   objective: string;
   theme: string | null;
   startDate: string;
-  weeks: number;
-  postsPerWeek: number;
+  endDate: string | null;
+  videoCount: number | null;
+  postCount: number | null;
+  carrosselCount: number | null;
   status: string;
   items: CalendarItem[];
 }
@@ -35,8 +37,10 @@ export interface CalendarSummary {
   title: string;
   objective: string;
   startDate: string;
-  weeks: number;
-  postsPerWeek: number;
+  endDate: string | null;
+  videoCount: number | null;
+  postCount: number | null;
+  carrosselCount: number | null;
   createdAt: string;
   _count: { items: number };
 }

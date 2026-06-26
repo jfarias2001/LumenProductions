@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ContentType, Pillar, PILLAR_GROUP_MAP, MIX_TARGETS } from '@content-engine/shared';
+import { Pillar, PILLAR_GROUP_MAP, MIX_TARGETS } from '@content-engine/shared';
 import {
   useCalendars,
   useCalendar,
@@ -83,9 +83,14 @@ function CalendarDetailView({ id, aiOff }: { id: string; aiOff: boolean }) {
 
   const pending = data.items.filter((it) => !it.cardId).length;
   const result = autoProduce.data;
-  const weeks = Array.from({ length: data.weeks }, (_, i) => i + 1);
+  const startMs = new Date(data.startDate).getTime();
+  const lastMs = data.items.length
+    ? Math.max(...data.items.map((it) => new Date(it.scheduledFor).getTime()))
+    : startMs;
+  const weekCount = Math.max(1, Math.floor((lastMs - startMs) / (7 * 86400000)) + 1);
+  const weeks = Array.from({ length: weekCount }, (_, i) => i + 1);
   const itemsByWeek = (w: number) => {
-    const start = new Date(data.startDate).getTime() + (w - 1) * 7 * 86400000;
+    const start = startMs + (w - 1) * 7 * 86400000;
     const end = start + 7 * 86400000;
     return data.items.filter((it) => {
       const t = new Date(it.scheduledFor).getTime();
@@ -143,6 +148,10 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function isoPlusDays(days: number) {
+  return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+}
+
 export default function CalendarPage() {
   const { data: calendars = [] } = useCalendars();
   const generate = useGenerateCalendar();
@@ -154,27 +163,26 @@ export default function CalendarPage() {
     title: '',
     objective: '',
     startDate: todayISO(),
-    weeks: 2,
-    postsPerWeek: 3,
-    video: true,
-    estatico: true,
+    endDate: isoPlusDays(14),
+    videoCount: 2,
+    postCount: 2,
+    carrosselCount: 1,
     notes: '',
   });
 
+  const total = form.videoCount + form.postCount + form.carrosselCount;
+
   function generateNow() {
-    const contentTypes = [
-      ...(form.video ? [ContentType.VIDEO] : []),
-      ...(form.estatico ? [ContentType.ESTATICO] : []),
-    ];
-    if (!contentTypes.length) return;
+    if (total < 1) return;
     generate.mutate(
       {
         title: form.title,
         objective: form.objective,
         startDate: form.startDate,
-        weeks: form.weeks,
-        postsPerWeek: form.postsPerWeek,
-        contentTypes,
+        endDate: form.endDate,
+        videoCount: form.videoCount,
+        postCount: form.postCount,
+        carrosselCount: form.carrosselCount,
         notes: form.notes || undefined,
       },
       { onSuccess: (cal) => setSelectedId(cal.id) },
@@ -182,7 +190,8 @@ export default function CalendarPage() {
   }
 
   const aiOff = aiStatus.data && !aiStatus.data.enabled;
-  const canGenerate = form.title.trim() && form.objective.trim() && (form.video || form.estatico);
+  const validPeriod = new Date(form.endDate) >= new Date(form.startDate);
+  const canGenerate = form.title.trim() && form.objective.trim() && total >= 1 && total <= 60 && validPeriod;
 
   return (
     <div className="flex flex-col h-screen bg-surface-950">
@@ -202,23 +211,33 @@ export default function CalendarPage() {
                 <label className="label-base">Objetivo / tema</label>
                 <textarea className="input-base min-h-[60px]" value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })} placeholder="O que essa sequência precisa provocar?" />
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="label-base">Início</label>
                   <input type="date" className="input-base !py-1.5" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label-base">Semanas</label>
-                  <input type="number" min={1} max={12} className="input-base !py-1.5" value={form.weeks} onChange={(e) => setForm({ ...form, weeks: Number(e.target.value) })} />
-                </div>
-                <div>
-                  <label className="label-base">Posts/sem</label>
-                  <input type="number" min={1} max={14} className="input-base !py-1.5" value={form.postsPerWeek} onChange={(e) => setForm({ ...form, postsPerWeek: Number(e.target.value) })} />
+                  <label className="label-base">Fim</label>
+                  <input type="date" min={form.startDate} className="input-base !py-1.5" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
                 </div>
               </div>
-              <div className="flex gap-3 text-xs text-slate-300">
-                <label className="flex items-center gap-1.5"><input type="checkbox" checked={form.video} onChange={(e) => setForm({ ...form, video: e.target.checked })} /> Vídeo</label>
-                <label className="flex items-center gap-1.5"><input type="checkbox" checked={form.estatico} onChange={(e) => setForm({ ...form, estatico: e.target.checked })} /> Estático</label>
+              {!validPeriod && <p className="text-[11px] text-rose-300">A data fim deve ser igual ou posterior à data início.</p>}
+              <div>
+                <label className="label-base">Quantidade por tipo</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-500">Vídeos</span>
+                    <input type="number" min={0} max={60} className="input-base !py-1.5" value={form.videoCount} onChange={(e) => setForm({ ...form, videoCount: Math.max(0, Number(e.target.value)) })} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500">Posts</span>
+                    <input type="number" min={0} max={60} className="input-base !py-1.5" value={form.postCount} onChange={(e) => setForm({ ...form, postCount: Math.max(0, Number(e.target.value)) })} />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500">Carrosséis</span>
+                    <input type="number" min={0} max={60} className="input-base !py-1.5" value={form.carrosselCount} onChange={(e) => setForm({ ...form, carrosselCount: Math.max(0, Number(e.target.value)) })} />
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="label-base">Observações (opcional)</label>
@@ -228,7 +247,7 @@ export default function CalendarPage() {
                 {generate.isPending ? 'Gerando…' : '✦ Gerar com IA'}
               </button>
               {generate.isError && <p className="text-[11px] text-rose-300">{(generate.error as Error)?.message ?? 'Falha ao gerar.'}</p>}
-              <p className="text-[10px] text-slate-500">Total: {form.weeks * form.postsPerWeek} posts. A IA respeita o mix 60/25/15 e conecta as peças.</p>
+              <p className="text-[10px] text-slate-500">Total: {total} {total === 1 ? 'peça' : 'peças'} no período. A IA respeita o mix 60/25/15 e conecta as peças.</p>
             </div>
 
             <div className="surface-card p-4 space-y-2">
@@ -240,7 +259,10 @@ export default function CalendarPage() {
                     <p className="text-sm text-slate-100 truncate">{c.title}</p>
                     <button onClick={(e) => { e.stopPropagation(); if (confirm('Excluir este calendário?')) { del.mutate(c.id); if (selectedId === c.id) setSelectedId(null); } }} className="text-slate-500 hover:text-rose-300 text-xs">✕</button>
                   </div>
-                  <p className="text-[10px] text-slate-500">{c._count.items} posts · {c.weeks} sem · {c.postsPerWeek}/sem</p>
+                  <p className="text-[10px] text-slate-500">
+                    {c._count.items} {c._count.items === 1 ? 'peça' : 'peças'}
+                    {c.endDate ? ` · ${fmtDate(c.startDate)}–${fmtDate(c.endDate)}` : ''}
+                  </p>
                 </div>
               ))}
             </div>

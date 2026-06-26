@@ -494,12 +494,16 @@ model EditorialCalendar {
   id           String                  @id @default(cuid())
   title        String
   objective    String
-  theme        String?
-  startDate    DateTime
-  weeks        Int
-  postsPerWeek Int
-  status       String                  @default("draft")
-  createdById  String?
+  theme          String?
+  startDate      DateTime
+  endDate        DateTime?
+  weeks          Int?
+  postsPerWeek   Int?
+  videoCount     Int?
+  postCount      Int?
+  carrosselCount Int?
+  status         String                @default("draft")
+  createdById    String?
   items        EditorialCalendarItem[]
   createdAt    DateTime                @default(now())
   updatedAt    DateTime                @updatedAt

@@ -74,10 +74,6 @@ export default function Login() {
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
-
-        <p className="text-xs text-slate-500 text-center mt-6">
-          Admin padrão: admin@lumendigital.com.br / Admin@123456
-        </p>
       </div>
     </div>
   );

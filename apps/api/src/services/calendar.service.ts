@@ -5,7 +5,7 @@
  * card em IDEIAS_BRUTAS (idempotente) sem alterar o pipeline de 18 estágios.
  */
 import type { GenerateCalendarInput, AICalendarItem } from '@content-engine/shared';
-import { Stage } from '@content-engine/shared';
+import { Stage, ContentType } from '@content-engine/shared';
 import { prisma } from '../lib/prisma.js';
 import { emitBoard } from '../lib/emitter.js';
 import { getAIProvider } from '../lib/ai/provider.js';
@@ -17,52 +17,33 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Distribui N posts uniformemente ao longo dos 7 dias de uma semana (0-based). */
-function dayOffsetsForWeek(postsInWeek: number): number[] {
-  if (postsInWeek <= 1) return [0];
-  const offsets: number[] = [];
-  for (let i = 0; i < postsInWeek; i++) {
-    offsets.push(Math.round((i * 6) / (postsInWeek - 1))); // 0..6
-  }
-  return offsets;
-}
-
 interface PlannedItem extends AICalendarItem {
   position: number;
   scheduledFor: Date;
 }
 
-/** Calcula posição e data de cada item a partir da semana informada pela IA. */
-function planDates(items: AICalendarItem[], startDate: Date, weeks: number): PlannedItem[] {
-  // Agrupa por semana (clampada ao intervalo válido), preservando a ordem de chegada.
-  const byWeek = new Map<number, AICalendarItem[]>();
-  for (const item of items) {
-    const w = Math.min(Math.max(item.week || 1, 1), weeks);
-    if (!byWeek.has(w)) byWeek.set(w, []);
-    byWeek.get(w)!.push(item);
-  }
-
-  const planned: PlannedItem[] = [];
-  let position = 0;
-  for (const w of [...byWeek.keys()].sort((a, b) => a - b)) {
-    const weekItems = byWeek.get(w)!;
-    const offsets = dayOffsetsForWeek(weekItems.length);
-    const weekStartMs = startDate.getTime() + (w - 1) * 7 * DAY_MS;
-    weekItems.forEach((item, idx) => {
-      planned.push({
-        ...item,
-        position: position++,
-        scheduledFor: new Date(weekStartMs + (offsets[idx] ?? 0) * DAY_MS),
-      });
-    });
-  }
-  return planned;
+/**
+ * Distribui os itens uniformemente ao longo do período [startDate, endDate],
+ * preservando a ordem (narrativa) decidida pela IA. (PRD-008)
+ */
+function planDates(items: AICalendarItem[], startDate: Date, endDate: Date): PlannedItem[] {
+  const total = items.length;
+  const spanDays = Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / DAY_MS));
+  return items.map((item, i) => {
+    const offset = total <= 1 ? 0 : Math.round((i * spanDays) / (total - 1));
+    return {
+      ...item,
+      position: i,
+      scheduledFor: new Date(startDate.getTime() + offset * DAY_MS),
+    };
+  });
 }
 
 export async function generateAndSave(input: GenerateCalendarInput, userId?: string) {
   const out = await aiGenerateCalendar(input, userId);
   const startDate = new Date(`${input.startDate}T09:00:00`);
-  const planned = planDates(out.items, startDate, input.weeks);
+  const endDate = new Date(`${input.endDate}T09:00:00`);
+  const planned = planDates(out.items, startDate, endDate);
 
   const calendar = await prisma.editorialCalendar.create({
     data: {
@@ -70,8 +51,10 @@ export async function generateAndSave(input: GenerateCalendarInput, userId?: str
       objective: input.objective,
       theme: out.theme || null,
       startDate,
-      weeks: input.weeks,
-      postsPerWeek: input.postsPerWeek,
+      endDate,
+      videoCount: input.videoCount,
+      postCount: input.postCount,
+      carrosselCount: input.carrosselCount,
       createdById: userId ?? null,
       items: {
         create: planned.map((p) => ({
@@ -79,7 +62,7 @@ export async function generateAndSave(input: GenerateCalendarInput, userId?: str
           scheduledFor: p.scheduledFor,
           title: p.title.slice(0, 290),
           pillar: p.pillar ?? null,
-          contentType: p.contentType ?? input.contentTypes[0],
+          contentType: p.contentType ?? ContentType.VIDEO,
           staticFormat: p.staticFormat ?? null,
           format: p.format ?? null,
           persona: p.persona ?? null,

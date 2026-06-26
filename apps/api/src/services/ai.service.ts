@@ -682,15 +682,19 @@ export async function generateCalendar(
   input: GenerateCalendarInput,
   userId?: string,
 ): Promise<AICalendarOutput> {
-  const total = input.weeks * input.postsPerWeek;
-  const tiposPermitidos = input.contentTypes.join(', ');
+  const total = input.videoCount + input.postCount + input.carrosselCount;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const periodDays = Math.max(
+    1,
+    Math.round((new Date(input.endDate).getTime() - new Date(input.startDate).getTime()) / DAY_MS) + 1,
+  );
 
   const system = `${await goldenRule()}
 ${INSTAGRAM_CONTEXT}
 Você é estrategista de conteúdo e monta CALENDÁRIOS EDITORIAIS para Instagram (Reels e posts estáticos).
 Princípios:
 - Cada peça segue a Regra de Ouro (dor → falha do processo → mecanismo → posicionamento da Lumen).
-- As peças devem se CONECTAR formando uma narrativa que evolui semana a semana (cada item tem um campo "connection" explicando como engata na sequência).
+- As peças devem se CONECTAR formando uma narrativa que evolui ao longo do período (cada item tem um campo "connection" explicando como engata na sequência).
 - Respeite o mix-alvo de pilares: ${MIX_TARGETS.DOR_CONSCIENCIA}% dor/consciência (DOR_DONO_AGENCIA, QUEBRA_CRENCA, OBJECOES), ${MIX_TARGETS.SOLUCAO_MECANISMO}% solução/mecanismo (OPORTUNIDADE_TICKET, PRODUTO_MECANISMO), ${MIX_TARGETS.PROVA_BASTIDOR_PRODUTO}% prova/bastidor (PROVA_BASTIDORES, AUTORIDADE).`;
 
   const user = `${dataBlock(
@@ -698,19 +702,22 @@ Princípios:
     JSON.stringify({
       titulo: input.title,
       objetivo: input.objective,
-      semanas: input.weeks,
-      postsPorSemana: input.postsPerWeek,
-      tiposPermitidos,
+      periodoDias: periodDays,
+      videos: input.videoCount,
+      posts: input.postCount,
+      carrosseis: input.carrosselCount,
       observacoes: input.notes ?? '',
     }),
   )}
 
-Gere EXATAMENTE ${total} itens (${input.postsPerWeek} por semana, ${input.weeks} semanas), numerando a semana (1..${input.weeks}).
+Gere EXATAMENTE ${total} itens, distribuídos ao longo de ${periodDays} dia(s), respeitando esta composição por tipo:
+- ${input.videoCount} item(ns) de VÍDEO (contentType "VIDEO", sem "staticFormat").
+- ${input.postCount} item(ns) de POST imagem única (contentType "ESTATICO", "staticFormat" "IMAGEM_UNICA").
+- ${input.carrosselCount} item(ns) de CARROSSEL (contentType "ESTATICO", "staticFormat" "CARROSSEL").
+Ordene os itens no array formando a melhor narrativa conectada — não precisa agrupar por tipo.
 Pilares válidos: DOR_DONO_AGENCIA, QUEBRA_CRENCA, OPORTUNIDADE_TICKET, PRODUTO_MECANISMO, PROVA_BASTIDORES, OBJECOES, AUTORIDADE.
-contentType deve ser um dos permitidos: ${tiposPermitidos}.
-Quando contentType for ESTATICO, defina "staticFormat": "IMAGEM_UNICA" (padrão — uma única imagem) ou "CARROSSEL" (só quando a mensagem realmente exigir vários slides, ex.: passo a passo, listas, antes/depois). Prefira IMAGEM_UNICA. Para VIDEO, omita "staticFormat".
 format (opcional): PESSOA_FALANDO, PRINTS_PROCESSO, POV_DONO_AGENCIA, ANTES_DEPOIS, CHECKLIST, STORYTELLING, COMPARATIVO, TREND_ADAPTADA, SIMULACAO_CONVERSA, DEMONSTRACAO_PRODUTO.
-Responda APENAS JSON: {"theme":"fio condutor geral","items":[{"week":1,"title":"hook/título","pillar":"DOR_DONO_AGENCIA","contentType":"VIDEO","format":"PESSOA_FALANDO","staticFormat":"IMAGEM_UNICA","persona":"...","pain":"...","promise":"objetivo da peça","connection":"como conecta na sequência"}]}`;
+Responda APENAS JSON: {"theme":"fio condutor geral","items":[{"title":"hook/título","pillar":"DOR_DONO_AGENCIA","contentType":"VIDEO","format":"PESSOA_FALANDO","staticFormat":"IMAGEM_UNICA","persona":"...","pain":"...","promise":"objetivo da peça","connection":"como conecta na sequência"}]}`;
 
   return run({
     type: 'calendar',
