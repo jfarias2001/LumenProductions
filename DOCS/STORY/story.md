@@ -362,6 +362,24 @@ Correções/polimento (sem novo PRD) a partir de uso real.
 
 ---
 
+## [2026-06-26] Validação auto-corretiva + auto-produção até "Pronto para gravar"
+
+Correções/polimento (sem novo PRD), continuação do item anterior. Relato do usuário: (1) a IA às vezes valida com nota baixa — quer que ela **se auto-corrija** até a nota mínima (voltando a exigir o mínimo de antes); (2) o **sistema não precisa mais de validação humana**; (3) ao gerar o **calendário**, todos os cards de criativo devem ir automaticamente até o **último estágio de criação antes de gravar** (PRONTO_PARA_GRAVAR).
+
+### Backend (`apps/api`)
+- **`ai.service.ts`** — nova `improveIdea(cardId, validation)`: reescreve a ideia mirando os 6 critérios fracos (reusa `AIStructureOutputSchema`). Novo orquestrador **`validateAndAutoCorrect(cardId, userId)`**: valida → se < SEGUIR_ROTEIRO (≥13), reescreve a ideia e revalida, até `MAX_VALIDATION_ATTEMPTS` (3); persiste a **melhor** tentativa (maior nota) e restaura os campos do card correspondentes a ela. Helper `scoresOf`. `autoProduceCard` passou a usar `validateAndAutoCorrect` no passo 1. `persistStageFromSource` (IDEIAS_VALIDADAS) e a rota `POST /ai/validate` também usam o auto-corretivo. `summarizeResultForChat` atualizado.
+- **`pipeline.service.ts`** — gate `IDEIAS_VALIDADAS → ANGULO_DEFINIDO` voltou a exigir a **nota mínima** (`verdict === SEGUIR_ROTEIRO`), mas **passa sozinho** quando atingida (sem humano). Confirmação humana (`reviewedById`) continua como **override manual** para destravar nota baixa. Reimportados `ValidationVerdict`/`VALIDATION_THRESHOLDS`.
+- **Auto-produção do calendário** — sem mudança de lógica: como o gate de validação agora passa automaticamente (via auto-correção), `advanceWhilePossible` leva cada card de IDEIAS_BRUTAS até **PRONTO_PARA_GRAVAR** (para só no gate de checklist de pré-produção, que é ação humana). Docstrings de `autoProduceCard`/`advanceWhilePossible` atualizadas.
+- `routes/ai.ts`: removido import não usado `calculateValidation`.
+
+### Frontend (`apps/web`)
+- `CardDetail.tsx` (`ValidacaoTab`): a UI distingue **nota mínima atingida** (badge verde + "pode avançar, validação manual não é mais necessária") de **abaixo do mínimo** (painel de override discreto "Confirmar manualmente e avançar"). Texto do gate (`STAGE_META`) e hint do "Validar com IA" atualizados.
+
+### Estado
+- `pnpm --filter api typecheck` e `pnpm --filter web typecheck` OK. Sem migração e sem mudança em `packages/shared`.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

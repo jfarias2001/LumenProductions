@@ -7,7 +7,6 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { requirePermission } from '../plugins/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { emitBoard } from '../lib/emitter.js';
-import { calculateValidation } from '../services/validation.service.js';
 import { getAIProvider, AINotConfiguredError } from '../lib/ai/provider.js';
 import * as aiService from '../services/ai.service.js';
 import {
@@ -88,25 +87,11 @@ export default async function aiRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // ── 3. Validação assistida → sugestão (aiSuggested), gate ainda exige humano ─
+  // ── 3. Validação assistida com auto-correção → atinge a nota mínima e libera o gate ─
   fastify.post('/ai/validate', guard, async (request, reply) => {
     const { cardId } = AIValidateInputSchema.parse(request.body);
     try {
-      const out = await aiService.validate(cardId, request.actor.sub);
-      const scores = {
-        dorQuente: out.dorQuente,
-        clareza: out.clareza,
-        contraste: out.contraste,
-        especificidadeAgencia: out.especificidadeAgencia,
-        potencialComentarios: out.potencialComentarios,
-        potencialComercial: out.potencialComercial,
-      };
-      const { total, verdict } = calculateValidation(scores);
-      const validation = await prisma.validation.upsert({
-        where: { cardId },
-        update: { ...scores, total, verdict, aiJustifications: out.justificativas, aiSuggested: true, reviewedById: null },
-        create: { cardId, ...scores, total, verdict, aiJustifications: out.justificativas, aiSuggested: true },
-      });
+      const { validation } = await aiService.validateAndAutoCorrect(cardId, request.actor.sub);
       emitBoard('card.updated', { id: cardId, validation });
       return reply.send(validation);
     } catch (err) {

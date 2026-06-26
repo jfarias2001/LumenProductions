@@ -16,6 +16,8 @@ import {
   GOLDEN_RULE_PROMPT,
   MIX_TARGETS,
   MIN_HOOKS_TO_ADVANCE,
+  VALIDATION_THRESHOLDS,
+  ValidationVerdict,
   ContentType,
   StaticFormat,
   Stage,
@@ -180,6 +182,122 @@ Responda APENAS JSON: {"dorQuente":0,"clareza":0,"contraste":0,"especificidadeAg
   return run({ type: 'validate', cardId, createdById, system, user, schema: AIValidateOutputSchema, schemaName: 'validate', temperature: 0.2 });
 }
 
+/** Campos da ideia que influenciam a validação (lidos e reescritos na auto-correção). */
+const IDEA_FIELDS = { title: true, persona: true, pain: true, promise: true, pillar: true, awareness: true } as const;
+type IdeaFields = Prisma.CardGetPayload<{ select: typeof IDEA_FIELDS }>;
+
+/** Quantas rodadas de auto-correção tentar até atingir a nota mínima. */
+const MAX_VALIDATION_ATTEMPTS = 3;
+
+/**
+ * Reescreve uma ideia que recebeu nota baixa, mirando os critérios fracos para
+ * atingir SEGUIR_ROTEIRO (≥ nota mínima). Reusa o schema de estruturação.
+ */
+export async function improveIdea(cardId: string, v: AIValidateOutput, createdById?: string): Promise<AIStructureOutput> {
+  const card = await prisma.card.findUniqueOrThrow({ where: { id: cardId }, select: IDEA_FIELDS });
+  const scores = {
+    dorQuente: v.dorQuente,
+    clareza: v.clareza,
+    contraste: v.contraste,
+    especificidadeAgencia: v.especificidadeAgencia,
+    potencialComentarios: v.potencialComentarios,
+    potencialComercial: v.potencialComercial,
+  };
+  const system = `${await goldenRule()}\nVocê REFINA uma ideia de conteúdo que recebeu nota baixa na validação, reescrevendo-a para maximizar os 6 critérios e atingir SEGUIR_ROTEIRO (total ≥ ${VALIDATION_THRESHOLDS.SEGUIR_MIN} de ${VALIDATION_THRESHOLDS.MAX_SCORE}).`;
+  const user = `${dataBlock('Ideia atual', JSON.stringify(card))}
+${dataBlock('Notas recebidas (0–3 por critério) e justificativas', JSON.stringify({ scores, justificativas: v.justificativas }))}
+
+Reescreva a ideia corrigindo os pontos fracos apontados: deixe a dor mais quente e específica para dono de agência, o contraste/quebra de crença mais forte, e o potencial comercial e de comentários mais alto. Mantenha o tema central, mas torne o título e a promessa mais afiados e concretos.
+Pilares válidos: DOR_DONO_AGENCIA, QUEBRA_CRENCA, OPORTUNIDADE_TICKET, PRODUTO_MECANISMO, PROVA_BASTIDORES, OBJECOES, AUTORIDADE. Níveis de consciência: PROBLEMA, NOVA_PERSPECTIVA, IDENTIFICACAO, INTENCAO.
+Responda APENAS JSON: {"title":"...","persona":"...","pain":"...","promise":"...","pillar":"...","awareness":"..."}`;
+
+  return run({ type: 'improve_idea', cardId, createdById, system, user, schema: AIStructureOutputSchema, schemaName: 'structure', temperature: 0.6 });
+}
+
+export interface AutoCorrectValidationResult {
+  validation: Prisma.ValidationGetPayload<object>;
+  attempts: number;
+  corrected: boolean;
+  passed: boolean;
+}
+
+/**
+ * Valida a ideia e, se a nota ficar abaixo do mínimo (SEGUIR_ROTEIRO, ≥13), reescreve
+ * a ideia e revalida — até MAX_VALIDATION_ATTEMPTS vezes. Persiste a MELHOR tentativa
+ * (maior nota) e garante que os campos do card correspondam a ela. Retorna a validação
+ * persistida. Não exige humano: a nota mínima libera o gate automaticamente.
+ */
+export async function validateAndAutoCorrect(cardId: string, userId?: string): Promise<AutoCorrectValidationResult> {
+  let best: { scores: ReturnType<typeof scoresOf>; total: number; verdict: ValidationVerdict; justificativas: AIValidateOutput['justificativas']; fields: IdeaFields } | null = null;
+  let attempts = 0;
+  let corrected = false;
+
+  for (let i = 0; i < MAX_VALIDATION_ATTEMPTS; i++) {
+    attempts++;
+    // Snapshot dos campos que a validação enxerga nesta rodada.
+    const fields = await prisma.card.findUniqueOrThrow({ where: { id: cardId }, select: IDEA_FIELDS });
+    const vOut = await validate(cardId, userId);
+    const scores = scoresOf(vOut);
+    const { total, verdict } = calculateValidation(scores);
+
+    if (!best || total > best.total) {
+      best = { scores, total, verdict, justificativas: vOut.justificativas, fields };
+    }
+    if (verdict === ValidationVerdict.SEGUIR_ROTEIRO) break;
+
+    // Ainda há tentativas: reescreve a ideia mirando os critérios fracos.
+    if (i < MAX_VALIDATION_ATTEMPTS - 1) {
+      const imp = await improveIdea(cardId, vOut, userId);
+      await prisma.card.update({
+        where: { id: cardId },
+        data: {
+          title: imp.title,
+          persona: imp.persona ?? null,
+          pain: imp.pain ?? null,
+          promise: imp.promise ?? null,
+          ...(imp.pillar ? { pillar: imp.pillar } : {}),
+          ...(imp.awareness ? { awareness: imp.awareness } : {}),
+        },
+      });
+      corrected = true;
+    }
+  }
+
+  const b = best!;
+  // Garante que o card reflita a ideia da MELHOR tentativa (a última pode ter sido pior).
+  await prisma.card.update({
+    where: { id: cardId },
+    data: {
+      title: b.fields.title,
+      persona: b.fields.persona,
+      pain: b.fields.pain,
+      promise: b.fields.promise,
+      pillar: b.fields.pillar,
+      awareness: b.fields.awareness,
+    },
+  });
+  const data = { ...b.scores, total: b.total, verdict: b.verdict, aiJustifications: b.justificativas, aiSuggested: true, reviewedById: null };
+  const validation = await prisma.validation.upsert({
+    where: { cardId },
+    update: data,
+    create: { cardId, ...data },
+  });
+
+  return { validation, attempts, corrected, passed: b.verdict === ValidationVerdict.SEGUIR_ROTEIRO };
+}
+
+/** Extrai os 6 critérios da saída de validação da IA. */
+function scoresOf(v: AIValidateOutput) {
+  return {
+    dorQuente: v.dorQuente,
+    clareza: v.clareza,
+    contraste: v.contraste,
+    especificidadeAgencia: v.especificidadeAgencia,
+    potencialComentarios: v.potencialComentarios,
+    potencialComercial: v.potencialComercial,
+  };
+}
+
 // ── 4. Ângulos e hooks ──────────────────────────────────────────────────────────
 export async function angles(cardId: string, createdById?: string, conversation?: string): Promise<AIAnglesOutput> {
   const card = await prisma.card.findUniqueOrThrow({
@@ -336,21 +454,9 @@ async function persistStageFromSource(
     }
 
     case Stage.IDEIAS_VALIDADAS: {
-      const out = await validate(cardId, userId, source);
-      const scores = {
-        dorQuente: out.dorQuente,
-        clareza: out.clareza,
-        contraste: out.contraste,
-        especificidadeAgencia: out.especificidadeAgencia,
-        potencialComentarios: out.potencialComentarios,
-        potencialComercial: out.potencialComercial,
-      };
-      const { total, verdict } = calculateValidation(scores);
-      const validation = await prisma.validation.upsert({
-        where: { cardId },
-        update: { ...scores, total, verdict, aiJustifications: out.justificativas, aiSuggested: true, reviewedById: null },
-        create: { cardId, ...scores, total, verdict, aiJustifications: out.justificativas, aiSuggested: true },
-      });
+      // Valida com auto-correção: se a nota ficar baixa, reescreve a ideia e revalida
+      // até atingir a nota mínima (a nota libera o gate automaticamente).
+      const { validation } = await validateAndAutoCorrect(cardId, userId);
       return { entity: 'validation', data: validation };
     }
 
@@ -436,7 +542,7 @@ function summarizeResultForChat(result: ConsolidateResult): string {
         .filter(Boolean)
         .join('\n');
     case 'validation':
-      return `✦ Validação gerada (sugestão): ${String(d.total)}/18 — veredito ${String(d.verdict).replace(/_/g, ' ')}. Continua exigindo revisão humana no gate.`;
+      return `✦ Validação gerada: ${String(d.total)}/18 — veredito ${String(d.verdict).replace(/_/g, ' ')}.${String(d.verdict) === 'SEGUIR_ROTEIRO' ? ' Nota mínima atingida — gate liberado.' : ' Abaixo do mínimo mesmo após auto-correção; revise manualmente.'}`;
     case 'angles': {
       const a = (d.angles as unknown[])?.length ?? 0;
       const h = (d.hooks as unknown[])?.length ?? 0;
@@ -479,28 +585,16 @@ export async function generateStage(
 
 // ── Auto-produção de um card (PRD-007) ────────────────────────────────────────────
 /**
- * Preenche TODAS as entidades criativas de um card recém-criado — validação (sugestão),
- * ângulos+hooks (com seleção automática), roteiro+copy e direção criativa — deixando a
- * peça pronta para produção. Reusa as funções de IA por tarefa (cada uma registra AIJob).
- * Não altera o pipeline: a validação entra como sugestão (sem reviewedById).
+ * Preenche TODAS as entidades criativas de um card recém-criado — validação (com
+ * auto-correção até a nota mínima), ângulos+hooks (com seleção automática), roteiro+copy
+ * e direção criativa — deixando a peça pronta para produção. Reusa as funções de IA por
+ * tarefa (cada uma registra AIJob). Combinada com advanceWhilePossible, leva o card até
+ * PRONTO_PARA_GRAVAR (o último estágio de criação antes de gravar).
  */
 export async function autoProduceCard(cardId: string, userId?: string): Promise<void> {
-  // 1. Validação (entra como sugestão; o gate continua exigindo confirmação humana).
-  const vOut = await validate(cardId, userId);
-  const scores = {
-    dorQuente: vOut.dorQuente,
-    clareza: vOut.clareza,
-    contraste: vOut.contraste,
-    especificidadeAgencia: vOut.especificidadeAgencia,
-    potencialComentarios: vOut.potencialComentarios,
-    potencialComercial: vOut.potencialComercial,
-  };
-  const { total, verdict } = calculateValidation(scores);
-  await prisma.validation.upsert({
-    where: { cardId },
-    update: { ...scores, total, verdict, aiJustifications: vOut.justificativas, aiSuggested: true, reviewedById: null },
-    create: { cardId, ...scores, total, verdict, aiJustifications: vOut.justificativas, aiSuggested: true },
-  });
+  // 1. Validação com auto-correção: revalida reescrevendo a ideia até atingir a nota
+  //    mínima (SEGUIR_ROTEIRO), que libera o gate automaticamente — sem humano.
+  await validateAndAutoCorrect(cardId, userId);
 
   // 2. Ângulos + hooks, com seleção automática (prepara os gates a jusante).
   const aOut = await angles(cardId, userId);
@@ -556,9 +650,9 @@ const ADVANCE_INCLUDE = {
 
 /**
  * Avança o card o máximo que os gates permitirem (PRD-007). Para no primeiro gate
- * bloqueado — na prática, em IDEIAS_VALIDADAS, pois avançar para ÂNGULO exige a
- * confirmação humana da validação (reviewedById). Não pula etapas nem altera o
- * PipelineService. Retorna o estágio final.
+ * bloqueado — combinado com autoProduceCard, chega a PRONTO_PARA_GRAVAR (o gate
+ * seguinte, GRAVADO, exige o checklist de pré-produção, que é ação humana). Não pula
+ * etapas nem altera o PipelineService. Retorna o estágio final.
  */
 export async function advanceWhilePossible(cardId: string, userId?: string): Promise<Stage> {
   for (let guard = 0; guard < STAGE_ORDER.length; guard++) {

@@ -22,7 +22,7 @@ const FLOW: Stage[] = STAGE_ORDER.filter((s) => s !== Stage.ARQUIVADO);
 const STAGE_META: Record<Stage, { job: string; gate: string }> = {
   [Stage.SINAIS_MERCADO]: { job: 'Capture o sinal de mercado que originou a ideia.', gate: 'Preencha a fonte e o conteúdo do sinal.' },
   [Stage.IDEIAS_BRUTAS]: { job: 'Lapide a ideia com o copiloto: dor central, persona e promessa.', gate: 'Defina um título claro (mín. 3 caracteres).' },
-  [Stage.IDEIAS_VALIDADAS]: { job: 'Valide o potencial da ideia (6 critérios, 0–3).', gate: 'Validação confirmada por um humano (a confirmação libera o avanço).' },
+  [Stage.IDEIAS_VALIDADAS]: { job: 'Valide o potencial da ideia (6 critérios, 0–3).', gate: 'Nota mínima SEGUIR_ROTEIRO (≥13) — a IA se auto-corrige para atingi-la.' },
   [Stage.ANGULO_DEFINIDO]: { job: 'Explore ângulos narrativos e escolha o mais forte.', gate: 'Selecione ao menos 1 ângulo.' },
   [Stage.HOOKS_EM_TESTE]: { job: 'Gere e refine hooks de abertura (primeiros 2 segundos).', gate: 'Mínimo 5 hooks, com 1 marcado como ESCOLHIDO.' },
   [Stage.ROTEIRO]: { job: 'Escreva o roteiro: dor → quebra → mecanismo → benefício → CTA.', gate: 'Roteiro com as 5 seções e duração entre 30–45s.' },
@@ -445,29 +445,32 @@ function ValidacaoTab({ cardId, card }: { cardId: string; card: Rec }) {
     });
   };
   const busy = confirm.isPending || transition.isPending;
+  const passed = String(v?.verdict) === 'SEGUIR_ROTEIRO';
   return (
     <div className="space-y-4">
-      <AICopilotButton label="Validar com IA" mutation={validate} hint="entra como sugestão; gate exige confirmação humana" />
+      <AICopilotButton label="Validar com IA" mutation={validate} hint="busca a nota mínima sozinha; reescreve a ideia se ficar baixa" />
       {v ? (
         <>
           <div className="flex items-center gap-3">
             <span className="text-3xl font-bold text-white">{String(v.total)}</span>
             <span className="text-slate-500">/18</span>
             <span className={`badge !text-xs !px-2 !py-1 ${VERDICT_BADGE[String(v.verdict)] ?? 'bg-surface-700 text-slate-400'}`}>{String(v.verdict).replace(/_/g, ' ')}</span>
-            {v.reviewedById
-              ? <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/40">✓ confirmada por humano</span>
-              : <span className="badge bg-ai-600/15 text-ai-400 border border-ai-500/40">sugestão IA — revisar</span>}
+            {passed
+              ? <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/40">✓ nota mínima atingida</span>
+              : <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/40">abaixo do mínimo</span>}
           </div>
-          {!v.reviewedById && (
+          {passed ? (
+            <p className="text-xs text-emerald-300/90">A ideia atingiu a nota mínima — pode seguir pela barra "Avançar" abaixo. Validação manual não é mais necessária.</p>
+          ) : (
             <div className="surface-card bg-surface-850 p-3 space-y-2">
-              <p className="text-xs text-slate-400">Revise as notas acima. Ao confirmar, você assume a validação como humano e o card avança automaticamente para a próxima fase — independentemente do veredito da IA.</p>
+              <p className="text-xs text-slate-400">A IA tentou corrigir a ideia, mas a nota ficou abaixo do mínimo. Reescreva a ideia (etapa anterior) e valide de novo, ou confirme manualmente para avançar mesmo assim.</p>
               <button
                 type="button"
                 onClick={handleConfirm}
                 disabled={busy}
-                className="btn-primary w-full disabled:opacity-50"
+                className="btn-ghost w-full disabled:opacity-50"
               >
-                {confirm.isPending ? 'Confirmando…' : transition.isPending ? 'Avançando…' : '✓ Confirmar e avançar'}
+                {confirm.isPending ? 'Confirmando…' : transition.isPending ? 'Avançando…' : '✓ Confirmar manualmente e avançar'}
               </button>
               {confirm.isError && <p className="text-xs text-rose-400">Falha ao confirmar. Tente novamente.</p>}
               {transition.isError && <p className="text-xs text-amber-300/90">Validação confirmada, mas o avanço foi bloqueado: {(transition.error as Error)?.message ?? 'gate de qualidade.'}</p>}
