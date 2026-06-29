@@ -148,6 +148,8 @@ model Card {
   stage          Stage          @default(SINAIS_MERCADO)
   contentType    ContentType    @default(VIDEO)
   staticFormat   StaticFormat?
+  isAd           Boolean        @default(false)
+  adPlan         Json?          // Criativo de anúncio (Meta Ads): AIAdCreativeOutput (PRD-009)
   title          String
   persona        String?
   pain           String?
@@ -502,6 +504,7 @@ model EditorialCalendar {
   videoCount     Int?
   postCount      Int?
   carrosselCount Int?
+  adVideoCount   Int?
   status         String                @default("draft")
   createdById    String?
   items        EditorialCalendarItem[]
@@ -519,6 +522,7 @@ model EditorialCalendarItem {
   pillar       Pillar?
   contentType  ContentType       @default(VIDEO)
   staticFormat StaticFormat?
+  isAd         Boolean           @default(false)
   format       CreativeFormat?
   persona      String?
   pain         String?

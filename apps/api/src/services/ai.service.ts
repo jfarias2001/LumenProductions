@@ -13,6 +13,7 @@ import {
   AIRecycleOutputSchema,
   AIDirectionOutputSchema,
   AICalendarOutputSchema,
+  AIAdCreativeOutputSchema,
   GOLDEN_RULE_PROMPT,
   MIX_TARGETS,
   MIN_HOOKS_TO_ADVANCE,
@@ -20,6 +21,7 @@ import {
   ValidationVerdict,
   ContentType,
   StaticFormat,
+  CreativeFormat,
   Stage,
   STAGE_ORDER,
   type AIProspectOutput,
@@ -30,6 +32,7 @@ import {
   type AIRecycleOutput,
   type AIDirectionOutput,
   type AICalendarOutput,
+  type AIAdCreativeOutput,
   type GenerateCalendarInput,
 } from '@content-engine/shared';
 import { prisma } from '../lib/prisma.js';
@@ -47,6 +50,13 @@ import { emitBoard } from '../lib/emitter.js';
  */
 const INSTAGRAM_CONTEXT =
   'Todo conteúdo é publicado no INSTAGRAM: VÍDEO = Reels verticais 9:16; ESTÁTICO = feed 4:5 ou 1:1 (imagem única) ou carrossel de até 10 cards. Pense e produza nativamente para esse contexto.';
+
+/**
+ * Contexto de ANÚNCIO (Meta Ads — Facebook/Instagram, PRD-009). Injeta o mindset
+ * de tráfego pago e resposta direta nas gerações de criativo de anúncio.
+ */
+const META_ADS_CONTEXT =
+  'Este criativo é um ANÚNCIO de tráfego PAGO no META ADS (Facebook/Instagram), veiculado para PÚBLICO FRIO. Objetivo único: CONVERSÃO. Regras: (1) gancho nos primeiros 3 segundos que segura quem não conhece a marca; (2) copy de RESPOSTA DIRETA (texto principal + título + descrição + botão de CTA) que quebra objeção e leva à ação (clique/mensagem/cadastro); (3) edição pensada para anúncio — vídeos do sistema/banco/b-roll, trilha, efeitos sonoros, legendas queimadas (a maioria assiste sem som), ritmo acelerado e tom de voz persuasivo. Nada de linguagem só de engajamento orgânico — tudo mira a conversão.';
 
 /** Custo estimado (USD) bem aproximado p/ gpt-4o-mini — apenas observabilidade. */
 const COST_PER_1K = { input: 0.00015, output: 0.0006 };
@@ -418,6 +428,93 @@ export async function persistDirection(cardId: string, out: AIDirectionOutput) {
   });
 }
 
+// ── 7b. Criativo de anúncio (PRD-009) — substitui o criativo orgânico p/ Meta Ads ──
+/**
+ * Gera o criativo de ANÚNCIO (Meta Ads): roteiro de conversão + copy de resposta
+ * direta + direção de edição para tráfego pago (vídeos do sistema, trilha, efeitos,
+ * tom de voz, dicas de conversão). Usado quando o card é anúncio (isAd).
+ */
+export async function adCreative(cardId: string, createdById?: string, conversation?: string): Promise<AIAdCreativeOutput> {
+  const card = await prisma.card.findUniqueOrThrow({
+    where: { id: cardId },
+    include: { angles: { where: { selected: true } }, hooks: { where: { status: 'ESCOLHIDO' } } },
+  });
+  const ctx = {
+    title: card.title,
+    persona: card.persona,
+    pain: card.pain,
+    promise: card.promise,
+    angulos: card.angles.map((a) => a.text),
+    hooks: card.hooks.map((h) => h.text),
+  };
+
+  const formatos = 'PESSOA_FALANDO, PRINTS_PROCESSO, POV_DONO_AGENCIA, ANTES_DEPOIS, CHECKLIST, STORYTELLING, COMPARATIVO, TREND_ADAPTADA, SIMULACAO_CONVERSA, DEMONSTRACAO_PRODUTO';
+  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\n${META_ADS_CONTEXT}\nVocê é diretor(a) de criativos de PERFORMANCE e copywriter de RESPOSTA DIRETA. Entregue um criativo de anúncio PRONTO PARA VEICULAR — específico e acionável, sem generalidades.`;
+  const user = `${dataBlock('Card', JSON.stringify(ctx))}${convoBlock(conversation)}
+
+Produza o criativo de anúncio completo:
+- "script": roteiro de conversão (dor, quebra, mecanismo, beneficio, cta, durationSec entre 15 e 60).
+- Copy de anúncio: "primaryText" (texto principal persuasivo), "headline" (título curto), "description" (descrição do link), "ctaButton" (um entre: "Saiba mais", "Enviar mensagem", "Cadastre-se", "Comprar agora", "Baixar"), "copyVariations" (2 a 3 variações do texto principal para teste A/B).
+- Direção de edição para anúncio: escolha "format" entre ${formatos}; "hook" (gancho dos primeiros 3s p/ tráfego frio); "shotList" (decupagem cena a cena: scene, durationSec, visual, screenText, voiceover); "systemAssets" (vídeos do sistema/banco/b-roll concretos a usar); "music" (trilha/estilo); "soundEffects" (efeitos sonoros); "voiceTone" (tom de voz/entonação p/ conversão); "editingInsights" (cortes, ritmo, legendas queimadas); "conversionTips" (dicas específicas de conversão no Meta Ads).
+Responda APENAS JSON: {"script":{"dor":"...","quebra":"...","mecanismo":"...","beneficio":"...","cta":"...","durationSec":30},"primaryText":"...","headline":"...","description":"...","ctaButton":"Saiba mais","copyVariations":["..."],"format":"...","hook":"...","shotList":[{"scene":"...","durationSec":3,"visual":"...","screenText":"...","voiceover":"..."}],"systemAssets":["..."],"music":"...","soundEffects":["..."],"voiceTone":"...","editingInsights":["..."],"conversionTips":["..."]}`;
+
+  return run({ type: 'ad_creative', cardId, createdById, system, user, schema: AIAdCreativeOutputSchema, schemaName: 'ad_creative', temperature: 0.7 });
+}
+
+/** Coage durationSec (number|string da IA) para inteiro no intervalo do roteiro. */
+function coerceDuration(v: unknown, fallback = 30): number {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? parseInt(v, 10) : NaN;
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(90, Math.max(15, Math.round(n)));
+}
+
+/**
+ * Persiste o criativo de anúncio nas entidades reais (roteiro, copy, direção) para
+ * os gates do pipeline passarem, e guarda o plano completo em Card.adPlan para o
+ * render rico do pacote final. (PRD-009)
+ */
+export async function persistAdCreative(cardId: string, out: AIAdCreativeOutput) {
+  const script = await prisma.script.upsert({
+    where: { cardId },
+    update: {
+      dor: out.script.dor, quebra: out.script.quebra, mecanismo: out.script.mecanismo,
+      beneficio: out.script.beneficio, cta: out.script.cta,
+      durationSec: coerceDuration(out.script.durationSec), aiGenerated: true,
+    },
+    create: {
+      cardId, dor: out.script.dor, quebra: out.script.quebra, mecanismo: out.script.mecanismo,
+      beneficio: out.script.beneficio, cta: out.script.cta,
+      durationSec: coerceDuration(out.script.durationSec), aiGenerated: true,
+    },
+  });
+
+  const ctaVariations = out.copyVariations.length ? out.copyVariations : [out.ctaButton];
+  const copyContent = await prisma.copyContent.upsert({
+    where: { cardId },
+    update: { caption: out.primaryText, ctaVariations, aiGenerated: true },
+    create: { cardId, caption: out.primaryText, ctaVariations, aiGenerated: true },
+  });
+
+  const creativeData = {
+    format: out.format ?? CreativeFormat.PESSOA_FALANDO,
+    editingInsights: out.editingInsights,
+    productionPlan: { voiceTone: out.voiceTone, shotList: out.shotList } as unknown as Prisma.InputJsonValue,
+    aiGenerated: true,
+  };
+  const creative = await prisma.creativeDirection.upsert({
+    where: { cardId },
+    update: creativeData,
+    create: { cardId, ...creativeData },
+  });
+
+  await prisma.card.update({
+    where: { id: cardId },
+    data: { isAd: true, adPlan: out as unknown as Prisma.InputJsonValue },
+  });
+
+  return { script, copy: copyContent, creative };
+}
+
 // ── Orquestrador: consolida a conversa de uma fase nas entidades reais (PRD-003) ──
 export interface ConsolidateResult {
   entity: string;
@@ -436,6 +533,14 @@ async function persistStageFromSource(
   userId: string | undefined,
   source: string,
 ): Promise<ConsolidateResult> {
+  // Card de anúncio: os estágios criativos geram o criativo de anúncio (PRD-009).
+  const { isAd } = await prisma.card.findUniqueOrThrow({ where: { id: cardId }, select: { isAd: true } });
+  if (isAd && (stage === Stage.ROTEIRO || stage === Stage.COPY_LEGENDA_CTA || stage === Stage.DIRECAO_CRIATIVA)) {
+    const out = await adCreative(cardId, userId, source);
+    const persisted = await persistAdCreative(cardId, out);
+    return { entity: 'adCreative', data: persisted };
+  }
+
   switch (stage) {
     case Stage.IDEIAS_BRUTAS: {
       const out = await structure(source, cardId, userId);
@@ -552,6 +657,8 @@ function summarizeResultForChat(result: ConsolidateResult): string {
       return '✦ Roteiro, legenda e variações de CTA gerados e gravados no card.';
     case 'creative':
       return `✦ Direção criativa gerada${d.format ? ` (formato ${String(d.format).replace(/_/g, ' ')})` : ''} e gravada no card.`;
+    case 'adCreative':
+      return '✦ Criativo de anúncio (Meta Ads) gerado: copy de conversão + direção de edição (vídeos do sistema, trilha, efeitos, tom de voz) e gravado no card.';
     case 'derivedAssets':
       return `✦ Gerados ${Array.isArray(result.data) ? result.data.length : 0} ativo(s) derivado(s) e gravados no card.`;
     default:
@@ -592,6 +699,8 @@ export async function generateStage(
  * PRONTO_PARA_GRAVAR (o último estágio de criação antes de gravar).
  */
 export async function autoProduceCard(cardId: string, userId?: string): Promise<void> {
+  const { isAd } = await prisma.card.findUniqueOrThrow({ where: { id: cardId }, select: { isAd: true } });
+
   // 1. Validação com auto-correção: revalida reescrevendo a ideia até atingir a nota
   //    mínima (SEGUIR_ROTEIRO), que libera o gate automaticamente — sem humano.
   await validateAndAutoCorrect(cardId, userId);
@@ -612,6 +721,14 @@ export async function autoProduceCard(cardId: string, userId?: string): Promise<
         aiGenerated: true,
       })),
     });
+  }
+
+  // 3+4. Card de anúncio (PRD-009): gera o criativo de ANÚNCIO (copy de conversão +
+  //       direção de edição p/ Meta Ads), que SUBSTITUI o roteiro/copy/direção orgânicos.
+  if (isAd) {
+    const adOut = await adCreative(cardId, userId);
+    await persistAdCreative(cardId, adOut);
+    return;
   }
 
   // 3. Roteiro + copy (lê o ângulo selecionado e os hooks escolhidos do passo 2).
@@ -682,7 +799,7 @@ export async function generateCalendar(
   input: GenerateCalendarInput,
   userId?: string,
 ): Promise<AICalendarOutput> {
-  const total = input.videoCount + input.postCount + input.carrosselCount;
+  const total = input.videoCount + input.postCount + input.carrosselCount + input.adVideoCount;
   const DAY_MS = 24 * 60 * 60 * 1000;
   const periodDays = Math.max(
     1,
@@ -706,18 +823,20 @@ Princípios:
       videos: input.videoCount,
       posts: input.postCount,
       carrosseis: input.carrosselCount,
+      videosAnuncio: input.adVideoCount,
       observacoes: input.notes ?? '',
     }),
   )}
 
 Gere EXATAMENTE ${total} itens, distribuídos ao longo de ${periodDays} dia(s), respeitando esta composição por tipo:
-- ${input.videoCount} item(ns) de VÍDEO (contentType "VIDEO", sem "staticFormat").
-- ${input.postCount} item(ns) de POST imagem única (contentType "ESTATICO", "staticFormat" "IMAGEM_UNICA").
-- ${input.carrosselCount} item(ns) de CARROSSEL (contentType "ESTATICO", "staticFormat" "CARROSSEL").
+- ${input.videoCount} item(ns) de VÍDEO orgânico (contentType "VIDEO", sem "staticFormat", "isAd" false).
+- ${input.postCount} item(ns) de POST imagem única (contentType "ESTATICO", "staticFormat" "IMAGEM_UNICA", "isAd" false).
+- ${input.carrosselCount} item(ns) de CARROSSEL (contentType "ESTATICO", "staticFormat" "CARROSSEL", "isAd" false).
+- ${input.adVideoCount} item(ns) de VÍDEO de ANÚNCIO para Meta Ads (contentType "VIDEO", "isAd" true) — focados em CONVERSÃO/tráfego pago, público frio, resposta direta.
 Ordene os itens no array formando a melhor narrativa conectada — não precisa agrupar por tipo.
 Pilares válidos: DOR_DONO_AGENCIA, QUEBRA_CRENCA, OPORTUNIDADE_TICKET, PRODUTO_MECANISMO, PROVA_BASTIDORES, OBJECOES, AUTORIDADE.
 format (opcional): PESSOA_FALANDO, PRINTS_PROCESSO, POV_DONO_AGENCIA, ANTES_DEPOIS, CHECKLIST, STORYTELLING, COMPARATIVO, TREND_ADAPTADA, SIMULACAO_CONVERSA, DEMONSTRACAO_PRODUTO.
-Responda APENAS JSON: {"theme":"fio condutor geral","items":[{"title":"hook/título","pillar":"DOR_DONO_AGENCIA","contentType":"VIDEO","format":"PESSOA_FALANDO","staticFormat":"IMAGEM_UNICA","persona":"...","pain":"...","promise":"objetivo da peça","connection":"como conecta na sequência"}]}`;
+Responda APENAS JSON: {"theme":"fio condutor geral","items":[{"title":"hook/título","pillar":"DOR_DONO_AGENCIA","contentType":"VIDEO","format":"PESSOA_FALANDO","staticFormat":"IMAGEM_UNICA","isAd":false,"persona":"...","pain":"...","promise":"objetivo da peça","connection":"como conecta na sequência"}]}`;
 
   return run({
     type: 'calendar',

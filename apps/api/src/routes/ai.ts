@@ -17,6 +17,7 @@ import {
   AICopyInputSchema,
   AIRecycleInputSchema,
   AIDirectionInputSchema,
+  AIAdCreativeInputSchema,
   Stage,
 } from '@content-engine/shared';
 
@@ -150,6 +151,19 @@ export default async function aiRoutes(fastify: FastifyInstance) {
       const creative = await aiService.persistDirection(cardId, out);
       emitBoard('card.updated', { id: cardId });
       return reply.send(creative);
+    } catch (err) {
+      return aiError(reply, err);
+    }
+  });
+
+  // ── 5c. Criativo de anúncio (Meta Ads) → substitui o criativo orgânico ──────
+  fastify.post('/ai/ad-creative', guard, async (request, reply) => {
+    const { cardId } = AIAdCreativeInputSchema.parse(request.body);
+    try {
+      const out = await aiService.adCreative(cardId, request.actor.sub);
+      const persisted = await aiService.persistAdCreative(cardId, out);
+      emitBoard('card.updated', { id: cardId });
+      return reply.send(persisted);
     } catch (err) {
       return aiError(reply, err);
     }

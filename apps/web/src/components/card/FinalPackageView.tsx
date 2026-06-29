@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDeliverable } from '../../hooks/useDeliverable.js';
-import type { Typography } from '../../hooks/useDeliverable.js';
+import type { Typography, AdCreativePlan } from '../../hooks/useDeliverable.js';
 
 interface Props {
   cardId: string;
@@ -28,10 +28,12 @@ export default function FinalPackageView({ cardId }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <span className="badge bg-ai-600/15 text-ai-400 border border-ai-500/40">
-          {data.type === 'VIDEO' ? '🎬 Vídeo (Reel)' : '🖼 Estático (post/carrossel)'}
+          {data.type === 'VIDEO' ? (data.isAd ? '📣 Vídeo de anúncio (Meta Ads)' : '🎬 Vídeo (Reel)') : '🖼 Estático (post/carrossel)'}
         </span>
         <button onClick={() => void copyMarkdown()} className="btn-ghost text-xs">{copied ? 'Copiado ✓' : '⧉ Copiar (Markdown)'}</button>
       </div>
+
+      {data.type === 'VIDEO' && data.ad && <AdSection ad={data.ad} />}
 
       {data.type === 'VIDEO' ? (
         <>
@@ -109,6 +111,41 @@ export default function FinalPackageView({ cardId }: Props) {
           <ul className="space-y-1">{data.ctaVariations.map((c, i) => <li key={i} className="text-sm text-slate-300 surface-card bg-surface-850 px-3 py-1.5">{c}</li>)}</ul>
         </Section>
       )}
+    </div>
+  );
+}
+
+function AdSection({ ad }: { ad: AdCreativePlan }) {
+  return (
+    <div className="surface-card bg-amber-500/5 border border-amber-500/30 p-3 space-y-3">
+      <h3 className="text-xs font-semibold text-amber-300 uppercase">📣 Criativo de anúncio (Meta Ads)</h3>
+      {ad.primaryText && (
+        <div>
+          <p className="text-[11px] font-semibold text-amber-300/80 uppercase mb-0.5">Texto principal</p>
+          <p className="text-sm text-slate-200 whitespace-pre-wrap">{ad.primaryText}</p>
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+        {ad.headline && <p className="text-slate-300">Título: <span className="text-slate-100">{ad.headline}</span></p>}
+        {ad.description && <p className="text-slate-300">Descrição: <span className="text-slate-100">{ad.description}</span></p>}
+        {ad.ctaButton && <p className="text-slate-300">Botão: <span className="badge bg-amber-500/15 text-amber-300">{ad.ctaButton}</span></p>}
+        {ad.hook && <p className="text-slate-300">Gancho (3s): <span className="text-slate-100">{ad.hook}</span></p>}
+      </div>
+      {!!ad.copyVariations?.length && <AdList label="Variações de texto (teste A/B)" items={ad.copyVariations} />}
+      {!!ad.systemAssets?.length && <AdList label="Vídeos do sistema / b-roll" items={ad.systemAssets} />}
+      {ad.music && <p className="text-sm text-slate-300">🎵 Trilha: <span className="text-slate-100">{ad.music}</span></p>}
+      {!!ad.soundEffects?.length && <AdList label="Efeitos sonoros" items={ad.soundEffects} />}
+      {ad.voiceTone && <p className="text-sm text-slate-300">🎙 Tom de voz: <span className="text-slate-100">{ad.voiceTone}</span></p>}
+      {!!ad.conversionTips?.length && <AdList label="Dicas de conversão (Meta Ads)" items={ad.conversionTips} />}
+    </div>
+  );
+}
+
+function AdList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-amber-300/80 uppercase mb-0.5">{label}</p>
+      <ul className="list-disc list-inside space-y-0.5 text-sm text-slate-300">{items.map((t, i) => <li key={i}>{t}</li>)}</ul>
     </div>
   );
 }

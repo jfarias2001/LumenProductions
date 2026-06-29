@@ -404,6 +404,36 @@ Correções/polimento (sem novo PRD), continuação do item anterior. Relato do 
 
 ---
 
+## [2026-06-29] PRD-009 — Vídeos de anúncio no calendário + criativo Meta Ads
+
+**Motivação (relato do usuário):** *"dentro do calendário, permitir colocar vídeos específicos para anúncio; a IA faz uma copy diferenciada focada em anúncio e dá insights de edição específica para anúncio — vídeos do sistema, músicas, efeitos, tom de voz etc., tudo focado em conversão no Facebook/Meta Ads."*
+
+**Decisões (travadas com o usuário):** marcação **só no calendário** (o card herda `isAd` ao ir pro pipeline); gerador ganha um **4º campo "Vídeos de anúncio"** (+ toggle por item); o criativo de anúncio **substitui** o orgânico (gera só a versão de Ads).
+
+### Shared (`packages/shared`)
+- `CreateCardSchema`/`UpdateCardSchema`: `isAd` opcional. `GenerateCalendarInputSchema`: `adVideoCount` (0–60, default 0; total/refines incluem o bucket). `AICalendarItemSchema`: `isAd` via novo `BooleanLoose` (tolera "true"/"sim"/1). Novo `AIAdCreativeOutputSchema` (roteiro de conversão + copy de resposta direta `primaryText`/`headline`/`description`/`ctaButton`/`copyVariations` + direção de edição: `hook` 3s, `shotList`, `systemAssets`, `music`, `soundEffects`, `voiceTone`, `editingInsights`, `conversionTips`) + `AIAdCreativeInputSchema` e tipos. `dist` rebuildado.
+
+### Backend (`apps/api`)
+- **Prisma**: `Card.isAd`/`Card.adPlan Json?`, `EditorialCalendarItem.isAd`, `EditorialCalendar.adVideoCount`. Migration aditiva/idempotente `20260629000000_ad_creative`.
+- **`ai.service`**: `META_ADS_CONTEXT` (tráfego frio/resposta direta). Nova `adCreative()` (diretor de performance + copywriter de resposta direta) e `persistAdCreative()` — preenche Script/CopyContent/CreativeDirection (gates passam) + grava o plano completo em `Card.adPlan`. `autoProduceCard` ramifica em `isAd` (gera o criativo de anúncio no lugar de copy+direction). `persistStageFromSource` roteia ROTEIRO/COPY/DIRECAO para o criativo de anúncio quando `isAd`. `generateCalendar` inclui `adVideoCount` no total e pede N vídeos com `isAd:true` focados em conversão. `summarizeResultForChat` ganhou o caso `adCreative`.
+- **`calendar.service`**: propaga `isAd` por item, grava `adVideoCount`, herda `isAd` no card (send + auto-produce). Novo `setItemAd()`.
+- **Rotas**: `PATCH /calendars/:id/items/:itemId` (`{isAd}`, perm. `createCard`) e `POST /ai/ad-creative` (503 sem chave / 502 falha; emite `card.updated`).
+- **`deliverable.service`**: o pacote VÍDEO ganha `isAd`+`ad` (lê `Card.adPlan`); Markdown ganha seção "📣 Criativo de anúncio (Meta Ads)".
+
+### Frontend (`apps/web`)
+- `useCalendar`: `CalendarItem.isAd`, `adVideoCount` em detail/summary, input `adVideoCount`, novo `useSetItemAd`. `CalendarPage`: 4º campo "📣 Vídeos de anúncio" (total inclui o bucket), badge "📣 Anúncio" + toggle marcar/desmarcar no item. `useDeliverable`: `AdCreativePlan` + `isAd`/`ad` no VÍDEO. `FinalPackageView`: bloco "📣 Criativo de anúncio (Meta Ads)" no topo. `CardDetail`: badge de anúncio no header.
+
+### Estado atual
+- No calendário dá para definir N vídeos de anúncio (e marcar/desmarcar itens). Cada card de anúncio recebe copy de conversão + direção de edição p/ Meta Ads (vídeos do sistema, trilha, efeitos, tom de voz, dicas de conversão) no lugar do criativo orgânico, avançando pelos mesmos gates até PRONTO_PARA_GRAVAR. Pipeline e `PipelineService` **inalterados**. Sem `OPENAI_API_KEY` → fallback claro.
+- `pnpm -r typecheck` OK nos 3 pacotes; `vite build` do web OK; `prisma generate` OK; `shared` rebuildado. Migration criada (aplicar com `prisma migrate deploy`).
+
+### Próximos passos sugeridos
+- Acervo real de "vídeos do sistema" (biblioteca de assets) para a IA referenciar de fato.
+- Botão de regenerar criativo de anúncio direto no CardDetail (endpoint `POST /ai/ad-creative` já existe).
+- Integração com a API do Meta para exportar/subir o criativo.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

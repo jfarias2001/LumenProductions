@@ -5,6 +5,7 @@ import {
   useCalendar,
   useGenerateCalendar,
   useSendCalendarItem,
+  useSetItemAd,
   useAutoProduceCalendar,
   useDeleteCalendar,
   type CalendarItem,
@@ -49,21 +50,23 @@ function MixBar({ items }: { items: CalendarItem[] }) {
 
 function ItemCard({ item, calendarId }: { item: CalendarItem; calendarId: string }) {
   const send = useSendCalendarItem(calendarId);
+  const setAd = useSetItemAd(calendarId);
   const inPipeline = !!item.cardId;
   return (
-    <div className="surface-card p-3 space-y-1.5">
+    <div className={`surface-card p-3 space-y-1.5 ${item.isAd ? 'ring-1 ring-amber-500/40' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <span className="text-[11px] text-slate-500">{fmtDate(item.scheduledFor)}</span>
         <span className="badge bg-surface-700 text-slate-300">{CONTENT_TYPE_LABELS[item.contentType]}</span>
       </div>
       <p className="text-sm text-slate-100 font-medium leading-snug">{item.title}</p>
       <div className="flex flex-wrap gap-1.5">
+        {item.isAd && <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/40">📣 Anúncio</span>}
         {item.pillar && <span className={`badge ${PILLAR_BADGE[item.pillar]}`}>{PILLAR_LABELS[item.pillar]}</span>}
         {item.format && <span className="badge bg-surface-700 text-slate-400">{FORMAT_LABELS[item.format]}</span>}
         {item.staticFormat && <span className="badge bg-surface-700 text-slate-400">{STATIC_FORMAT_LABELS[item.staticFormat]}</span>}
       </div>
       {item.connection && <p className="text-[11px] text-slate-400 italic">🔗 {item.connection}</p>}
-      <div className="pt-1">
+      <div className="pt-1 flex items-center justify-between gap-2">
         {inPipeline ? (
           <span className="text-[11px] text-emerald-400">✓ No pipeline</span>
         ) : (
@@ -71,6 +74,14 @@ function ItemCard({ item, calendarId }: { item: CalendarItem; calendarId: string
             {send.isPending ? 'Enviando…' : '→ Enviar para o pipeline'}
           </button>
         )}
+        <button
+          onClick={() => setAd.mutate({ itemId: item.id, isAd: !item.isAd })}
+          disabled={setAd.isPending}
+          className={`text-[11px] ${item.isAd ? 'text-amber-300 hover:text-amber-200' : 'text-slate-500 hover:text-slate-300'}`}
+          title="Anúncios recebem copy de conversão + edição focada em Meta Ads"
+        >
+          {item.isAd ? '✓ Anúncio' : '📣 Marcar anúncio'}
+        </button>
       </div>
     </div>
   );
@@ -167,10 +178,11 @@ export default function CalendarPage() {
     videoCount: 2,
     postCount: 2,
     carrosselCount: 1,
+    adVideoCount: 0,
     notes: '',
   });
 
-  const total = form.videoCount + form.postCount + form.carrosselCount;
+  const total = form.videoCount + form.postCount + form.carrosselCount + form.adVideoCount;
 
   function generateNow() {
     if (total < 1) return;
@@ -183,6 +195,7 @@ export default function CalendarPage() {
         videoCount: form.videoCount,
         postCount: form.postCount,
         carrosselCount: form.carrosselCount,
+        adVideoCount: form.adVideoCount,
         notes: form.notes || undefined,
       },
       { onSuccess: (cal) => setSelectedId(cal.id) },
@@ -237,6 +250,11 @@ export default function CalendarPage() {
                     <span className="text-[10px] text-slate-500">Carrosséis</span>
                     <input type="number" min={0} max={60} className="input-base !py-1.5" value={form.carrosselCount} onChange={(e) => setForm({ ...form, carrosselCount: Math.max(0, Number(e.target.value)) })} />
                   </div>
+                </div>
+                <div className="mt-2">
+                  <span className="text-[10px] text-amber-300">📣 Vídeos de anúncio (Meta Ads)</span>
+                  <input type="number" min={0} max={60} className="input-base !py-1.5" value={form.adVideoCount} onChange={(e) => setForm({ ...form, adVideoCount: Math.max(0, Number(e.target.value)) })} />
+                  <p className="text-[10px] text-slate-500 mt-0.5">Vídeos focados em conversão: copy de resposta direta + edição p/ tráfego pago.</p>
                 </div>
               </div>
               <div>

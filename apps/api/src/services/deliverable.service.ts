@@ -5,7 +5,7 @@
  *  - ESTÁTICO → copy + elementos gráficos (slides) + paleta + formato
  */
 import { ContentType } from '@content-engine/shared';
-import type { GraphicElement, Shot, Typography } from '@content-engine/shared';
+import type { GraphicElement, Shot, Typography, AIAdCreativeOutput } from '@content-engine/shared';
 import { prisma } from '../lib/prisma.js';
 
 interface ProductionPlan {
@@ -14,10 +14,15 @@ interface ProductionPlan {
   shotList?: Shot[];
 }
 
+/** Plano de anúncio (Meta Ads) exibido no pacote final (PRD-009). */
+export type AdCreativePlan = AIAdCreativeOutput;
+
 export type Deliverable =
   | {
       type: 'VIDEO';
       title: string;
+      isAd: boolean;
+      ad: AdCreativePlan | null;
       hook: string | null;
       script: Record<string, unknown> | null;
       screenTexts: string[];
@@ -71,6 +76,8 @@ export async function assemble(cardId: string): Promise<Deliverable> {
   return {
     type: 'VIDEO',
     title: card.title,
+    isAd: card.isAd,
+    ad: card.isAd && card.adPlan ? (card.adPlan as AdCreativePlan) : null,
     hook: card.hooks[0]?.text ?? null,
     script: card.script
       ? {
@@ -98,7 +105,8 @@ export function toMarkdown(d: Deliverable): string {
   const lines: string[] = [`# ${d.title}`, ''];
 
   if (d.type === 'VIDEO') {
-    lines.push('**Tipo:** Vídeo (Reel)', '');
+    lines.push(d.isAd ? '**Tipo:** Vídeo de anúncio (Meta Ads)' : '**Tipo:** Vídeo (Reel)', '');
+    if (d.ad) lines.push(...adLines(d.ad));
     if (d.hook) lines.push(`## Hook`, d.hook, '');
     if (d.script) {
       lines.push('## Roteiro');
@@ -153,6 +161,24 @@ export function toMarkdown(d: Deliverable): string {
   if (d.ctaVariations.length) lines.push('## CTAs', ...d.ctaVariations.map((c) => `- ${c}`), '');
 
   return lines.filter((l) => l !== undefined).join('\n');
+}
+
+/** Seção "Criativo de anúncio (Meta Ads)" do Markdown (PRD-009). */
+function adLines(ad: AdCreativePlan): string[] {
+  const out: string[] = ['## 📣 Criativo de anúncio (Meta Ads)', ''];
+  if (ad.primaryText) out.push('**Texto principal:**', ad.primaryText, '');
+  if (ad.headline) out.push(`**Título:** ${ad.headline}`);
+  if (ad.description) out.push(`**Descrição:** ${ad.description}`);
+  if (ad.ctaButton) out.push(`**Botão (CTA):** ${ad.ctaButton}`);
+  if (ad.copyVariations?.length) out.push('', '**Variações de texto (teste A/B):**', ...ad.copyVariations.map((c) => `- ${c}`));
+  if (ad.hook) out.push('', `**Gancho (3s):** ${ad.hook}`);
+  if (ad.systemAssets?.length) out.push('', '**Vídeos do sistema / b-roll:**', ...ad.systemAssets.map((a) => `- ${a}`));
+  if (ad.music) out.push('', `**Trilha:** ${ad.music}`);
+  if (ad.soundEffects?.length) out.push('', '**Efeitos sonoros:**', ...ad.soundEffects.map((s) => `- ${s}`));
+  if (ad.voiceTone) out.push('', `**Tom de voz:** ${ad.voiceTone}`);
+  if (ad.conversionTips?.length) out.push('', '**Dicas de conversão (Meta Ads):**', ...ad.conversionTips.map((t) => `- ${t}`));
+  out.push('');
+  return out;
 }
 
 function typographyLines(t: Typography): string {

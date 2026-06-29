@@ -68,6 +68,24 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.patch(
+    '/calendars/:id/items/:itemId',
+    { preHandler: [requirePermission('createCard')] },
+    async (request, reply) => {
+      const { id, itemId } = request.params as { id: string; itemId: string };
+      const { isAd } = request.body as { isAd: boolean };
+      try {
+        return await calendarService.setItemAd(id, itemId, !!isAd);
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === 'NOT_FOUND') {
+          return reply.status(404).send({ error: { code, message: (err as Error).message } });
+        }
+        throw err;
+      }
+    },
+  );
+
   fastify.post(
     '/calendars/:id/auto-produce',
     { preHandler: [requirePermission('useAI')] },

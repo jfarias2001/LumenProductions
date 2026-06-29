@@ -79,6 +79,7 @@ export default function CardDetail({ cardId, onClose }: Props) {
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="badge bg-brand-600/20 text-brand-300">{STAGE_LABELS[cardStage]}</span>
               {card.contentType ? <span className="badge bg-ai-600/15 text-ai-400 border border-ai-500/30">{CONTENT_TYPE_LABELS[String(card.contentType)] ?? String(card.contentType)}</span> : null}
+              {(card as { isAd?: boolean }).isAd ? <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/40">📣 Anúncio</span> : null}
               {pillar && <span className={`badge ${PILLAR_BADGE[pillar] ?? 'bg-surface-700 text-slate-400'}`}>{PILLAR_LABELS[pillar] ?? pillar}</span>}
             </div>
             <h2 className="text-base font-semibold text-white leading-tight">{card.title}</h2>

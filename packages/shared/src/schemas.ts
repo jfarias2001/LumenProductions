@@ -48,6 +48,7 @@ export const CreateCardSchema = z.object({
   stage: z.nativeEnum(Stage).default(Stage.SINAIS_MERCADO),
   contentType: z.nativeEnum(ContentType).default(ContentType.VIDEO),
   staticFormat: z.nativeEnum(StaticFormat).optional(),
+  isAd: z.boolean().optional(),
   signalSource: z.nativeEnum(SignalSource).optional(),
   signalContent: z.string().max(2000).optional(),
   signalLink: z.string().url().optional(),
@@ -60,6 +61,7 @@ export const UpdateCardSchema = z.object({
   title: z.string().min(3).max(300).optional(),
   contentType: z.nativeEnum(ContentType).optional(),
   staticFormat: z.nativeEnum(StaticFormat).optional(),
+  isAd: z.boolean().optional(),
   persona: z.string().max(500).optional(),
   pain: z.string().max(1000).optional(),
   promise: z.string().max(500).optional(),
@@ -536,17 +538,29 @@ export const GenerateCalendarInputSchema = z
     videoCount: z.number().int().min(0).max(60).default(0),
     postCount: z.number().int().min(0).max(60).default(0),
     carrosselCount: z.number().int().min(0).max(60).default(0),
+    /** Vídeos criados como ANÚNCIO (Meta Ads) — gerados com isAd=true (PRD-009). */
+    adVideoCount: z.number().int().min(0).max(60).default(0),
     notes: z.string().max(4000).optional(),
   })
-  .refine((d) => d.videoCount + d.postCount + d.carrosselCount >= 1, {
-    message: 'Defina ao menos 1 conteúdo (vídeo, post ou carrossel).',
+  .refine((d) => d.videoCount + d.postCount + d.carrosselCount + d.adVideoCount >= 1, {
+    message: 'Defina ao menos 1 conteúdo (vídeo, post, carrossel ou anúncio).',
   })
-  .refine((d) => d.videoCount + d.postCount + d.carrosselCount <= 60, {
+  .refine((d) => d.videoCount + d.postCount + d.carrosselCount + d.adVideoCount <= 60, {
     message: 'O total de peças não pode passar de 60.',
   })
   .refine((d) => new Date(d.endDate) >= new Date(d.startDate), {
     message: 'A data fim deve ser igual ou posterior à data início.',
   });
+
+/** Boolean tolerante: a IA pode devolver "true"/"sim"/1 em vez de boolean. */
+const BooleanLoose = z.preprocess((v) => {
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  if (typeof v === 'string') {
+    return ['true', '1', 'sim', 'yes', 'anuncio', 'ad'].includes(normalizeText(v));
+  }
+  return false;
+}, z.boolean());
 
 const ContentTypeLoose = z.preprocess(
   coerceEnum(ContentType, {
@@ -592,12 +606,66 @@ export const AICalendarItemSchema = z.object({
   pain: z.string().optional(),
   promise: z.string().optional(),
   connection: z.string().optional(),
+  /** Marca a peça como anúncio (Meta Ads) — recebe criativo de anúncio (PRD-009). */
+  isAd: BooleanLoose,
 });
 
 /** Saída completa da IA: fio condutor + sequência de itens conectados. */
 export const AICalendarOutputSchema = z.object({
   theme: z.string().default(''),
   items: z.array(AICalendarItemSchema).min(1),
+});
+
+// ── Criativo de anúncio / Meta Ads (PRD-009) ────────────────────────────────────
+
+/**
+ * Saída do criativo de ANÚNCIO (Meta Ads). Substitui o criativo orgânico para
+ * peças marcadas como anúncio: roteiro + copy de resposta direta + direção de
+ * edição focada em conversão (vídeos do sistema, trilha, efeitos, tom de voz).
+ */
+export const AIAdCreativeOutputSchema = z.object({
+  /** Roteiro do anúncio (mesma forma do roteiro, foco em conversão). */
+  script: z.object({
+    dor: LooseString.default(''),
+    quebra: LooseString.default(''),
+    mecanismo: LooseString.default(''),
+    beneficio: LooseString.default(''),
+    cta: LooseString.default(''),
+    durationSec: z.union([z.number(), z.string()]).optional(),
+  }),
+  // — Copy de anúncio (resposta direta) —
+  /** Texto principal do anúncio (corpo acima do criativo). */
+  primaryText: LooseString.default(''),
+  /** Título / manchete do anúncio. */
+  headline: LooseString.default(''),
+  /** Descrição (link / abaixo do título). */
+  description: LooseString.default(''),
+  /** Botão de CTA do anúncio (ex.: "Saiba mais", "Enviar mensagem", "Cadastre-se"). */
+  ctaButton: LooseString.default('Saiba mais'),
+  /** Variações do texto principal para teste A/B. */
+  copyVariations: looseArray(LooseString).default([]),
+  // — Direção de edição focada em anúncio —
+  format: FormatLoose,
+  /** Gancho dos primeiros 3 segundos para segurar tráfego frio. */
+  hook: LooseString.default(''),
+  /** Decupagem cena a cena. */
+  shotList: looseArray(ShotSchema).default([]),
+  /** Vídeos do sistema / banco / b-roll sugeridos. */
+  systemAssets: looseArray(LooseString).default([]),
+  /** Trilha / música sugerida. */
+  music: LooseString.default(''),
+  /** Efeitos sonoros sugeridos. */
+  soundEffects: looseArray(LooseString).default([]),
+  /** Tom de voz / entonação para conversão. */
+  voiceTone: LooseString.default(''),
+  /** Insights de edição (cortes, ritmo, legendas/captions). */
+  editingInsights: looseArray(LooseString).default([]),
+  /** Dicas de conversão específicas para Meta Ads. */
+  conversionTips: looseArray(LooseString).default([]),
+});
+
+export const AIAdCreativeInputSchema = z.object({
+  cardId: z.string().cuid(),
 });
 
 // ── Conversa por fase (PRD-003 / SPEC-003) ─────────────────────────────────────
@@ -672,3 +740,5 @@ export type CompanyProfileInput = z.infer<typeof CompanyProfileSchema>;
 export type GenerateCalendarInput = z.infer<typeof GenerateCalendarInputSchema>;
 export type AICalendarItem = z.infer<typeof AICalendarItemSchema>;
 export type AICalendarOutput = z.infer<typeof AICalendarOutputSchema>;
+export type AIAdCreativeOutput = z.infer<typeof AIAdCreativeOutputSchema>;
+export type AIAdCreativeInput = z.infer<typeof AIAdCreativeInputSchema>;

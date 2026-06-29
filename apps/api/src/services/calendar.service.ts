@@ -55,6 +55,7 @@ export async function generateAndSave(input: GenerateCalendarInput, userId?: str
       videoCount: input.videoCount,
       postCount: input.postCount,
       carrosselCount: input.carrosselCount,
+      adVideoCount: input.adVideoCount,
       createdById: userId ?? null,
       items: {
         create: planned.map((p) => ({
@@ -64,6 +65,7 @@ export async function generateAndSave(input: GenerateCalendarInput, userId?: str
           pillar: p.pillar ?? null,
           contentType: p.contentType ?? ContentType.VIDEO,
           staticFormat: p.staticFormat ?? null,
+          isAd: p.isAd ?? false,
           format: p.format ?? null,
           persona: p.persona ?? null,
           pain: p.pain ?? null,
@@ -115,6 +117,7 @@ export async function sendItemToPipeline(calendarId: string, itemId: string, use
       stage: Stage.IDEIAS_BRUTAS,
       contentType: item.contentType,
       staticFormat: item.staticFormat ?? null,
+      isAd: item.isAd,
       pillar: item.pillar ?? null,
       persona: item.persona ?? null,
       pain: item.pain ?? null,
@@ -126,6 +129,21 @@ export async function sendItemToPipeline(calendarId: string, itemId: string, use
   emitBoard('card.created', card);
 
   return { card, created: true };
+}
+
+/** Marca/desmarca um item do calendário como anúncio (Meta Ads). (PRD-009) */
+export async function setItemAd(calendarId: string, itemId: string, isAd: boolean) {
+  const item = await prisma.editorialCalendarItem.findFirst({ where: { id: itemId, calendarId } });
+  if (!item) {
+    throw Object.assign(new Error('Item do calendário não encontrado.'), { code: 'NOT_FOUND' });
+  }
+  const updated = await prisma.editorialCalendarItem.update({ where: { id: item.id }, data: { isAd } });
+  // Se já virou card, propaga a marcação para o card também.
+  if (item.cardId) {
+    await prisma.card.update({ where: { id: item.cardId }, data: { isAd } });
+    emitBoard('card.updated', { id: item.cardId, isAd });
+  }
+  return updated;
 }
 
 export interface AutoProduceResult {
@@ -166,6 +184,7 @@ export async function autoProduceCalendar(calendarId: string, userId?: string): 
           stage: Stage.IDEIAS_BRUTAS,
           contentType: item.contentType,
           staticFormat: item.staticFormat ?? null,
+          isAd: item.isAd,
           pillar: item.pillar ?? null,
           persona: item.persona ?? null,
           pain: item.pain ?? null,

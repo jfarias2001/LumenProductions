@@ -10,6 +10,7 @@ export interface CalendarItem {
   pillar: Pillar | null;
   contentType: ContentType;
   staticFormat: StaticFormat | null;
+  isAd: boolean;
   format: CreativeFormat | null;
   persona: string | null;
   pain: string | null;
@@ -28,6 +29,7 @@ export interface CalendarDetail {
   videoCount: number | null;
   postCount: number | null;
   carrosselCount: number | null;
+  adVideoCount: number | null;
   status: string;
   items: CalendarItem[];
 }
@@ -41,6 +43,7 @@ export interface CalendarSummary {
   videoCount: number | null;
   postCount: number | null;
   carrosselCount: number | null;
+  adVideoCount: number | null;
   createdAt: string;
   _count: { items: number };
 }
@@ -73,6 +76,19 @@ export function useSendCalendarItem(calendarId: string) {
   return useMutation({
     mutationFn: (itemId: string) =>
       api.post<{ card: { id: string }; created: boolean }>(`/calendars/${calendarId}/items/${itemId}/send-to-pipeline`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['calendar', calendarId] });
+      void qc.invalidateQueries({ queryKey: ['board'] });
+    },
+  });
+}
+
+/** Marca/desmarca um item do calendário como anúncio (PRD-009). */
+export function useSetItemAd(calendarId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, isAd }: { itemId: string; isAd: boolean }) =>
+      api.patch<{ id: string; isAd: boolean }>(`/calendars/${calendarId}/items/${itemId}`, { isAd }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['calendar', calendarId] });
       void qc.invalidateQueries({ queryKey: ['board'] });

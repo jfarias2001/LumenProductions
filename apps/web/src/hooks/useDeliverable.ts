@@ -26,10 +26,27 @@ export interface Typography {
   notes?: string;
 }
 
+export interface AdCreativePlan {
+  primaryText?: string;
+  headline?: string;
+  description?: string;
+  ctaButton?: string;
+  copyVariations?: string[];
+  hook?: string;
+  systemAssets?: string[];
+  music?: string;
+  soundEffects?: string[];
+  voiceTone?: string;
+  editingInsights?: string[];
+  conversionTips?: string[];
+}
+
 export type Deliverable =
   | {
       type: 'VIDEO';
       title: string;
+      isAd: boolean;
+      ad: AdCreativePlan | null;
       hook: string | null;
       script: Record<string, unknown> | null;
       screenTexts: string[];
