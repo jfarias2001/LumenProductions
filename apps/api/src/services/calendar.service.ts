@@ -5,7 +5,7 @@
  * card em IDEIAS_BRUTAS (idempotente) sem alterar o pipeline de 18 estágios.
  */
 import type { GenerateCalendarInput, AICalendarItem } from '@content-engine/shared';
-import { Stage, ContentType } from '@content-engine/shared';
+import { Stage, ContentType, StaticFormat, CreativeFormat } from '@content-engine/shared';
 import { prisma } from '../lib/prisma.js';
 import { emitBoard } from '../lib/emitter.js';
 import { getAIProvider } from '../lib/ai/provider.js';
@@ -39,38 +39,83 @@ function planDates(items: AICalendarItem[], startDate: Date, endDate: Date): Pla
   });
 }
 
+/** Os 4 "tipos" de peça que o usuário pede no gerador. */
+type Kind = 'adVideo' | 'video' | 'post' | 'carrossel';
+const KIND_ORDER: Kind[] = ['adVideo', 'video', 'post', 'carrossel'];
+
+/** Classifica um item devolvido pela IA em um dos 4 tipos. */
+function kindOf(i: AICalendarItem): Kind {
+  if (i.isAd) return 'adVideo';
+  if (i.contentType === ContentType.ESTATICO) {
+    return i.staticFormat === StaticFormat.CARROSSEL ? 'carrossel' : 'post';
+  }
+  return 'video';
+}
+
+/** Aplica o tipo escolhido ao item (ajusta isAd/contentType/staticFormat/format). */
+function applyKind(i: AICalendarItem, kind: Kind): void {
+  switch (kind) {
+    case 'adVideo':
+      // Anúncio é SEMPRE apresentador falando à câmera (PESSOA_FALANDO).
+      i.isAd = true; i.contentType = ContentType.VIDEO; i.staticFormat = undefined; i.format = CreativeFormat.PESSOA_FALANDO;
+      break;
+    case 'video':
+      i.isAd = false; i.contentType = ContentType.VIDEO; i.staticFormat = undefined;
+      break;
+    case 'post':
+      i.isAd = false; i.contentType = ContentType.ESTATICO; i.staticFormat = StaticFormat.IMAGEM_UNICA;
+      break;
+    case 'carrossel':
+      i.isAd = false; i.contentType = ContentType.ESTATICO; i.staticFormat = StaticFormat.CARROSSEL;
+      break;
+  }
+}
+
 /**
  * A IA nem sempre obedece à quantidade exata por tipo. Esta reconciliação garante
  * DETERMINISTICAMENTE a composição pedida (vídeos de anúncio + vídeos orgânicos +
- * posts + carrosséis), ajustando flags/tipos dos itens devolvidos sem perder a
- * narrativa (preserva a ordem). Não inventa nem descarta conteúdo: só re-rotula.
+ * posts + carrosséis), re-rotulando os itens devolvidos sem inventar conteúdo e
+ * preservando a ordem (narrativa). Mantém o tipo que a IA escolheu sempre que ainda
+ * há vaga; os excedentes são realocados aos tipos faltantes; itens além do total
+ * pedido são descartados.
  */
 function reconcileComposition(items: AICalendarItem[], input: GenerateCalendarInput): AICalendarItem[] {
-  const result = items.map((i) => ({ ...i }));
+  const remaining: Record<Kind, number> = {
+    adVideo: input.adVideoCount,
+    video: input.videoCount,
+    post: input.postCount,
+    carrossel: input.carrosselCount,
+  };
+  const decided: (Kind | null)[] = items.map(() => null);
 
-  // 1. Garante EXATAMENTE input.adVideoCount itens marcados como anúncio (VÍDEO).
-  const ads = result.filter((i) => i.isAd);
-  if (ads.length > input.adVideoCount) {
-    // Excedentes viram vídeo orgânico (mantém os primeiros como anúncio).
-    ads.slice(input.adVideoCount).forEach((i) => (i.isAd = false));
-  } else if (ads.length < input.adVideoCount) {
-    const need = input.adVideoCount - ads.length;
-    // Promove preferindo itens de VÍDEO; depois qualquer item não-anúncio.
-    const candidates = [
-      ...result.filter((i) => !i.isAd && i.contentType === ContentType.VIDEO),
-      ...result.filter((i) => !i.isAd && i.contentType !== ContentType.VIDEO),
-    ];
-    candidates.slice(0, need).forEach((i) => (i.isAd = true));
-  }
-  // Todo anúncio é VÍDEO (sem staticFormat).
-  result.forEach((i) => {
-    if (i.isAd) {
-      i.contentType = ContentType.VIDEO;
-      i.staticFormat = undefined;
+  // Passo 1: mantém o tipo que a IA escolheu, se ainda houver vaga.
+  items.forEach((it, idx) => {
+    const k = kindOf(it);
+    if (remaining[k] > 0) {
+      remaining[k]--;
+      decided[idx] = k;
+    }
+  });
+  // Passo 2: realoca os itens restantes aos tipos que ainda faltam (ordem fixa).
+  items.forEach((_, idx) => {
+    if (decided[idx]) return;
+    const k = KIND_ORDER.find((kk) => remaining[kk] > 0);
+    if (k) {
+      remaining[k]--;
+      decided[idx] = k;
     }
   });
 
-  return result;
+  // Reconstrói preservando a ordem; descarta itens além do total pedido (decided null).
+  const out: AICalendarItem[] = [];
+  items.forEach((it, idx) => {
+    const k = decided[idx];
+    if (!k) return;
+    const copy = { ...it };
+    applyKind(copy, k);
+    out.push(copy);
+  });
+  return out;
 }
 
 export async function generateAndSave(input: GenerateCalendarInput, userId?: string) {

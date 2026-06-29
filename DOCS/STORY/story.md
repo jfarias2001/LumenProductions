@@ -464,6 +464,22 @@ Correções/polimento (sem novo PRD), continuação do item anterior. Relato do 
 
 ---
 
+## [2026-06-29] Fix: composição exata do calendário + anúncio sempre apresentador (não animação)
+
+Ajustes pós-uso real (sem novo PRD), sobre PRD-009/PRD-010.
+
+### Problemas relatados
+1. **Composição ignorada:** ao pedir N posts/carrosséis, o calendário vinha quase só com vídeos (a `reconcileComposition` só forçava a contagem de anúncios).
+2. **Anúncio virava animação:** os vídeos de anúncio devem ser SEMPRE o **apresentador falando à câmera**, no máximo inserindo gravações de tela do sistema ou pequenas animações — nunca vídeo 100% animado.
+
+### Correções (`apps/api`)
+- **`calendar.service.reconcileComposition`** reescrita: agora garante DETERMINISTICAMENTE a composição completa (anúncios + vídeos + posts/IMAGEM_UNICA + carrosséis). Mantém o tipo escolhido pela IA quando há vaga, realoca o excedente aos tipos faltantes (ordem fixa), preserva a ordem (narrativa) e descarta itens além do total pedido. Helpers `kindOf`/`applyKind` (`Kind`). Anúncio sempre VÍDEO + `format` PESSOA_FALANDO.
+- **`ai.service`**: `META_ADS_CONTEXT` ganhou "FORMATO OBRIGATÓRIO" — anúncio é sempre apresentador (UGC/talking-head), inserindo no máximo gravações de tela do sistema/prints/pequenas animações sobre a fala; "vídeos do sistema" = screen recordings do produto, não animações de banco. `adCreative` fixa `format` PESSOA_FALANDO e a decupagem em apresentador à câmera + inserts de tela. `persistAdCreative` força `format` PESSOA_FALANDO. `generateCalendar` reforça o bucket de anúncio como PESSOA_FALANDO.
+
+`pnpm --filter api typecheck` OK. Sem migração e sem mudança de frontend.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

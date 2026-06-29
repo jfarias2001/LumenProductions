@@ -56,7 +56,8 @@ const INSTAGRAM_CONTEXT =
  * de tráfego pago e resposta direta nas gerações de criativo de anúncio.
  */
 const META_ADS_CONTEXT =
-  'Este criativo é um ANÚNCIO de tráfego PAGO no META ADS (Facebook/Instagram), veiculado para PÚBLICO FRIO. Objetivo único: CONVERSÃO. Regras: (1) gancho nos primeiros 3 segundos que segura quem não conhece a marca; (2) copy de RESPOSTA DIRETA (texto principal + título + descrição + botão de CTA) que quebra objeção e leva à ação (clique/mensagem/cadastro); (3) edição pensada para anúncio — vídeos do sistema/banco/b-roll, trilha, efeitos sonoros, legendas queimadas (a maioria assiste sem som), ritmo acelerado e tom de voz persuasivo. Nada de linguagem só de engajamento orgânico — tudo mira a conversão.';
+  'Este criativo é um ANÚNCIO de tráfego PAGO no META ADS (Facebook/Instagram), veiculado para PÚBLICO FRIO. Objetivo único: CONVERSÃO. Regras: (1) gancho nos primeiros 3 segundos que segura quem não conhece a marca; (2) copy de RESPOSTA DIRETA (texto principal + título + descrição + botão de CTA) que quebra objeção e leva à ação (clique/mensagem/cadastro); (3) edição pensada para anúncio — legendas queimadas (a maioria assiste sem som), ritmo acelerado, trilha e tom de voz persuasivo. ' +
+  'FORMATO OBRIGATÓRIO DO VÍDEO: é SEMPRE o APRESENTADOR (pessoa real) falando direto para a câmera, estilo UGC/talking-head. No MÁXIMO, inserir na tela GRAVAÇÕES DE TELA do sistema/produto (screen recording, prints, quadros) ou PEQUENAS animações/overlays de apoio sobre a fala. NUNCA um vídeo totalmente animado, motion graphics do início ao fim, ou sem apresentador. "Vídeos do sistema" = capturas de tela do produto em uso, não animações genéricas de banco.';
 
 /** Custo estimado (USD) bem aproximado p/ gpt-4o-mini — apenas observabilidade. */
 const COST_PER_1K = { input: 0.00015, output: 0.0006 };
@@ -482,15 +483,14 @@ export async function adCreative(cardId: string, createdById?: string, conversat
     hooks: card.hooks.map((h) => h.text),
   };
 
-  const formatos = 'PESSOA_FALANDO, PRINTS_PROCESSO, POV_DONO_AGENCIA, ANTES_DEPOIS, CHECKLIST, STORYTELLING, COMPARATIVO, TREND_ADAPTADA, SIMULACAO_CONVERSA, DEMONSTRACAO_PRODUTO';
   const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\n${META_ADS_CONTEXT}\nVocê é diretor(a) de criativos de PERFORMANCE e copywriter de RESPOSTA DIRETA. Entregue um criativo de anúncio PRONTO PARA VEICULAR — específico e acionável, sem generalidades.`;
   const user = `${dataBlock('Card', JSON.stringify(ctx))}${convoBlock(conversation)}
 
 Produza o criativo de anúncio completo:
 - "script": roteiro de conversão (dor, quebra, mecanismo, beneficio, cta, durationSec entre 15 e 60).
 - Copy de anúncio: "primaryText" (texto principal persuasivo), "headline" (título curto), "description" (descrição do link), "ctaButton" (um entre: "Saiba mais", "Enviar mensagem", "Cadastre-se", "Comprar agora", "Baixar"), "copyVariations" (2 a 3 variações do texto principal para teste A/B).
-- Direção de edição para anúncio: escolha "format" entre ${formatos}; "hook" (gancho dos primeiros 3s p/ tráfego frio); "shotList" (decupagem cena a cena: scene, durationSec, visual, screenText, voiceover); "systemAssets" (vídeos do sistema/banco/b-roll concretos a usar); "music" (trilha/estilo); "soundEffects" (efeitos sonoros); "voiceTone" (tom de voz/entonação p/ conversão); "editingInsights" (cortes, ritmo, legendas queimadas); "conversionTips" (dicas específicas de conversão no Meta Ads).
-Responda APENAS JSON: {"script":{"dor":"...","quebra":"...","mecanismo":"...","beneficio":"...","cta":"...","durationSec":30},"primaryText":"...","headline":"...","description":"...","ctaButton":"Saiba mais","copyVariations":["..."],"format":"...","hook":"...","shotList":[{"scene":"...","durationSec":3,"visual":"...","screenText":"...","voiceover":"..."}],"systemAssets":["..."],"music":"...","soundEffects":["..."],"voiceTone":"...","editingInsights":["..."],"conversionTips":["..."]}`;
+- Direção de edição para anúncio: use "format":"PESSOA_FALANDO" (apresentador falando à câmera — é OBRIGATÓRIO, não use outro formato); "hook" (gancho dos primeiros 3s p/ tráfego frio, dito pelo apresentador); "shotList" (decupagem cena a cena — a base é SEMPRE o apresentador falando à câmera; em "screenText"/"visual" indique quando inserir gravação de tela do sistema, print ou pequena animação SOBRE a fala, nunca substituindo o apresentador); "systemAssets" (quais telas/fluxos do SISTEMA gravar para inserir — screen recordings concretos, não animações de banco); "music" (trilha/estilo); "soundEffects" (efeitos sonoros pontuais); "voiceTone" (tom de voz/entonação do apresentador p/ conversão); "editingInsights" (cortes, ritmo, legendas queimadas, momentos de inserir a tela do sistema); "conversionTips" (dicas específicas de conversão no Meta Ads).
+Responda APENAS JSON: {"script":{"dor":"...","quebra":"...","mecanismo":"...","beneficio":"...","cta":"...","durationSec":30},"primaryText":"...","headline":"...","description":"...","ctaButton":"Saiba mais","copyVariations":["..."],"format":"PESSOA_FALANDO","hook":"...","shotList":[{"scene":"apresentador à câmera ...","durationSec":3,"visual":"...","screenText":"inserir tela do sistema: ...","voiceover":"..."}],"systemAssets":["gravar tela: ..."],"music":"...","soundEffects":["..."],"voiceTone":"...","editingInsights":["..."],"conversionTips":["..."]}`;
 
   return run({ type: 'ad_creative', cardId, createdById, system, user, schema: AIAdCreativeOutputSchema, schemaName: 'ad_creative', temperature: 0.7 });
 }
@@ -530,7 +530,8 @@ export async function persistAdCreative(cardId: string, out: AIAdCreativeOutput)
   });
 
   const creativeData = {
-    format: out.format ?? CreativeFormat.PESSOA_FALANDO,
+    // Anúncio é sempre apresentador falando à câmera, independente do que a IA devolver.
+    format: CreativeFormat.PESSOA_FALANDO,
     editingInsights: out.editingInsights,
     productionPlan: { voiceTone: out.voiceTone, shotList: out.shotList } as unknown as Prisma.InputJsonValue,
     aiGenerated: true,
@@ -866,7 +867,7 @@ Gere EXATAMENTE ${total} itens, distribuídos ao longo de ${periodDays} dia(s), 
 - ${input.videoCount} item(ns) de VÍDEO orgânico (contentType "VIDEO", sem "staticFormat", "isAd" false).
 - ${input.postCount} item(ns) de POST imagem única (contentType "ESTATICO", "staticFormat" "IMAGEM_UNICA", "isAd" false).
 - ${input.carrosselCount} item(ns) de CARROSSEL (contentType "ESTATICO", "staticFormat" "CARROSSEL", "isAd" false).
-- ${input.adVideoCount} item(ns) de VÍDEO de ANÚNCIO para Meta Ads (contentType "VIDEO", "isAd" true) — focados em CONVERSÃO/tráfego pago, público frio, resposta direta.
+- ${input.adVideoCount} item(ns) de VÍDEO de ANÚNCIO para Meta Ads (contentType "VIDEO", "isAd" true, "format" "PESSOA_FALANDO") — focados em CONVERSÃO/tráfego pago, público frio, resposta direta. O anúncio é SEMPRE o apresentador falando à câmera (no máximo inserindo telas do sistema), nunca animação.
 Ordene os itens no array formando a melhor narrativa conectada — não precisa agrupar por tipo.
 Os títulos devem ser ÚNICOS entre si e NÃO repetir os títulos já usados (veja a Memória de conteúdo) — varie ângulo e abordagem.
 Pilares válidos: DOR_DONO_AGENCIA, QUEBRA_CRENCA, OPORTUNIDADE_TICKET, PRODUTO_MECANISMO, PROVA_BASTIDORES, OBJECOES, AUTORIDADE.
