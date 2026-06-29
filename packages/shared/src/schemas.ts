@@ -71,6 +71,7 @@ export const UpdateCardSchema = z.object({
   screenTexts: z.array(z.string()).optional(),
   primaryMetric: z.string().max(200).optional(),
   contentClass: z.nativeEnum(ContentClass).optional(),
+  rating: z.number().int().min(1).max(5).nullable().optional(),
   signalSource: z.nativeEnum(SignalSource).optional(),
   signalContent: z.string().max(2000).optional(),
   signalLink: z.string().url().optional().or(z.literal('')).optional(),

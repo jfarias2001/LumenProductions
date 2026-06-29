@@ -39,11 +39,46 @@ function planDates(items: AICalendarItem[], startDate: Date, endDate: Date): Pla
   });
 }
 
+/**
+ * A IA nem sempre obedece à quantidade exata por tipo. Esta reconciliação garante
+ * DETERMINISTICAMENTE a composição pedida (vídeos de anúncio + vídeos orgânicos +
+ * posts + carrosséis), ajustando flags/tipos dos itens devolvidos sem perder a
+ * narrativa (preserva a ordem). Não inventa nem descarta conteúdo: só re-rotula.
+ */
+function reconcileComposition(items: AICalendarItem[], input: GenerateCalendarInput): AICalendarItem[] {
+  const result = items.map((i) => ({ ...i }));
+
+  // 1. Garante EXATAMENTE input.adVideoCount itens marcados como anúncio (VÍDEO).
+  const ads = result.filter((i) => i.isAd);
+  if (ads.length > input.adVideoCount) {
+    // Excedentes viram vídeo orgânico (mantém os primeiros como anúncio).
+    ads.slice(input.adVideoCount).forEach((i) => (i.isAd = false));
+  } else if (ads.length < input.adVideoCount) {
+    const need = input.adVideoCount - ads.length;
+    // Promove preferindo itens de VÍDEO; depois qualquer item não-anúncio.
+    const candidates = [
+      ...result.filter((i) => !i.isAd && i.contentType === ContentType.VIDEO),
+      ...result.filter((i) => !i.isAd && i.contentType !== ContentType.VIDEO),
+    ];
+    candidates.slice(0, need).forEach((i) => (i.isAd = true));
+  }
+  // Todo anúncio é VÍDEO (sem staticFormat).
+  result.forEach((i) => {
+    if (i.isAd) {
+      i.contentType = ContentType.VIDEO;
+      i.staticFormat = undefined;
+    }
+  });
+
+  return result;
+}
+
 export async function generateAndSave(input: GenerateCalendarInput, userId?: string) {
   const out = await aiGenerateCalendar(input, userId);
+  const items = reconcileComposition(out.items, input);
   const startDate = new Date(`${input.startDate}T09:00:00`);
   const endDate = new Date(`${input.endDate}T09:00:00`);
-  const planned = planDates(out.items, startDate, endDate);
+  const planned = planDates(items, startDate, endDate);
 
   const calendar = await prisma.editorialCalendar.create({
     data: {

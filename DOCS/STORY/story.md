@@ -434,6 +434,36 @@ Correções/polimento (sem novo PRD), continuação do item anterior. Relato do 
 
 ---
 
+## [2026-06-29] PRD-010 — Memória de conteúdo + avaliação por estrelas + fix da composição do anúncio
+
+**Motivação (relato do usuário):** (1) a IA **repetia ideias/títulos** entre gerações; (2) faltava um **sinal de qualidade** (estrelas) para a IA se aprimorar; (3) bug: ao pedir 3 vídeos de anúncio, vinham 4.
+
+**Decisões (travadas com o usuário):** estrelas **no card** (peça final); memória anti-repetição = **só títulos**; realimentação da nota = **modelos (4–5★) + evitar (1–2★)**.
+
+### Fix — composição do calendário determinística
+- `calendar.service.reconcileComposition(items, input)`: depois da geração, garante **exatamente** `input.adVideoCount` itens marcados como anúncio (re-rotula sem perder a narrativa; anúncio é sempre VÍDEO, sem staticFormat). Chamado em `generateAndSave` antes de `planDates`. Resolve o "pedi 3, vieram 4".
+
+### Shared (`packages/shared`)
+- `UpdateCardSchema`: `rating` (1–5, nullable, opcional). `dist` rebuildado.
+
+### Backend (`apps/api`)
+- **Prisma**: `Card.rating Int?`. Migration aditiva/idempotente `20260629000100_card_rating`.
+- **`ai.service`**: novo `buildIdeaMemory()` — títulos recentes (cards + itens de calendário, dedup, cap 80) como "JÁ USADO — não repita" + cards `rating>=4` como "modelos (siga)" + `rating<=2` como "evite", tudo como DADO. Helper `memoryBlock()` injeta no user prompt de `generateCalendar`, `prospect` e `structure` (geração de ideias). Sem histórico → bloco vazio (comportamento inalterado). Prompt do calendário reforça títulos únicos.
+- **Rota**: `PATCH /cards/:id` já repassa `UpdateCardSchema` ao Prisma → `rating` persiste sem novo handler.
+
+### Frontend (`apps/web`)
+- `CardDetail.tsx`: componente **`StarRating`** no header (1–5; clicar na estrela marcada limpa a nota) via `updateCard.mutate({ rating })`.
+
+### Estado atual
+- Geração de ideias passa a evitar repetição (memória de títulos) e a aprender com as notas (4–5★ viram referência, 1–2★ viram "evite"). Estrelas no card persistem e realimentam a IA. Quantidade de anúncios agora é exata. Pipeline/`PipelineService` **inalterados**. Sem `OPENAI_API_KEY` → memória só compõe prompt; comportamento inalterado.
+- `pnpm -r typecheck` OK nos 3 pacotes; `vite build` do web OK; `prisma generate` OK; `shared` rebuildado. Migrations criadas (aplicar com `prisma migrate deploy`).
+
+### Próximos passos sugeridos
+- Memória opcional de roteiro/legenda completos (hoje só títulos, por decisão).
+- Dashboard de notas (médias por pilar/formato) para enxergar o que funciona.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

@@ -150,6 +150,7 @@ model Card {
   staticFormat   StaticFormat?
   isAd           Boolean        @default(false)
   adPlan         Json?          // Criativo de anúncio (Meta Ads): AIAdCreativeOutput (PRD-009)
+  rating         Int?           // Avaliação 1–5 da peça final (PRD-010)
   title          String
   persona        String?
   pain           String?

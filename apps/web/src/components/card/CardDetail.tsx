@@ -83,6 +83,12 @@ export default function CardDetail({ cardId, onClose }: Props) {
               {pillar && <span className={`badge ${PILLAR_BADGE[pillar] ?? 'bg-surface-700 text-slate-400'}`}>{PILLAR_LABELS[pillar] ?? pillar}</span>}
             </div>
             <h2 className="text-base font-semibold text-white leading-tight">{card.title}</h2>
+            <div className="mt-1.5">
+              <StarRating
+                value={(card as { rating?: number | null }).rating ?? null}
+                onChange={(rating) => updateCard.mutate({ rating })}
+              />
+            </div>
             <p className="text-xs text-slate-500 mt-1">
               {card.assignee ? `Responsável: ${card.assignee.name}` : 'Sem responsável'} · Atualizado {formatDate(card.updatedAt)}
             </p>
@@ -1132,6 +1138,30 @@ function CommentsSection({ card }: { card: Rec }) {
           )) : <Empty>Sem comentários.</Empty>}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Avaliação 1–5 estrelas da peça (PRD-010). Clicar na estrela marcada limpa a nota. */
+function StarRating({ value, onChange }: { value: number | null; onChange: (rating: number | null) => void }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const shown = hover ?? value ?? 0;
+  return (
+    <div className="flex items-center gap-0.5" title="Avalie a peça — a IA usa as notas para repetir o que funciona e evitar o que não">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          onMouseEnter={() => setHover(n)}
+          onMouseLeave={() => setHover(null)}
+          onClick={() => onChange(value === n ? null : n)}
+          className={`text-base leading-none transition-colors ${n <= shown ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'}`}
+          aria-label={`${n} estrela${n > 1 ? 's' : ''}`}
+        >
+          ★
+        </button>
+      ))}
+      {value ? <span className="ml-1.5 text-[11px] text-slate-500">{value}/5</span> : <span className="ml-1.5 text-[11px] text-slate-600">avaliar</span>}
     </div>
   );
 }
