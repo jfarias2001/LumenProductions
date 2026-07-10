@@ -71,7 +71,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   [Stage.IDEIAS_VALIDADAS]: 'Ideias Validadas',
   [Stage.ANGULO_DEFINIDO]: 'Ângulo Definido',
   [Stage.HOOKS_EM_TESTE]: 'Hooks em Teste',
-  [Stage.ROTEIRO]: 'Roteiro',
+  [Stage.ROTEIRO]: 'Roteiro & Copy',
   [Stage.DIRECAO_CRIATIVA]: 'Direção Criativa',
   [Stage.PRONTO_PARA_GRAVAR]: 'Pronto para Gravar',
   [Stage.GRAVADO]: 'Gravado',

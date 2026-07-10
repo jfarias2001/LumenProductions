@@ -145,7 +145,7 @@ model User {
 
 model Card {
   id             String         @id @default(cuid())
-  stage          Stage          @default(SINAIS_MERCADO)
+  stage          Stage          @default(IDEIAS_BRUTAS)
   contentType    ContentType    @default(VIDEO)
   staticFormat   StaticFormat?
   isAd           Boolean        @default(false)

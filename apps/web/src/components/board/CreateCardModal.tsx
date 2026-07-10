@@ -1,26 +1,23 @@
 import { useState } from 'react';
-import { ContentType, StaticFormat, Pillar, SignalSource, Stage, STAGE_LABELS } from '@content-engine/shared';
+import { ContentType, StaticFormat, Pillar, Stage, STAGE_LABELS } from '@content-engine/shared';
 import { useCreateCard } from '../../hooks/useBoard.js';
-import { PILLAR_LABELS, SIGNAL_LABELS, CONTENT_TYPE_LABELS, STATIC_FORMAT_LABELS } from '../../lib/labels.js';
+import { PILLAR_LABELS, CONTENT_TYPE_LABELS, STATIC_FORMAT_LABELS } from '../../lib/labels.js';
 
 interface Props {
   onClose: () => void;
 }
 
-const INITIAL_STAGES = [Stage.SINAIS_MERCADO, Stage.IDEIAS_BRUTAS, Stage.IDEIAS_VALIDADAS];
+// Pipeline enxuto (PRD-011): o fluxo começa em Ideias Brutas (Sinais foi removido).
+const INITIAL_STAGES = [Stage.IDEIAS_BRUTAS, Stage.IDEIAS_VALIDADAS];
 
 export default function CreateCardModal({ onClose }: Props) {
   const create = useCreateCard();
   const [title, setTitle] = useState('');
-  const [stage, setStage] = useState<Stage>(Stage.SINAIS_MERCADO);
+  const [stage, setStage] = useState<Stage>(Stage.IDEIAS_BRUTAS);
   const [contentType, setContentType] = useState<ContentType>(ContentType.VIDEO);
   const [staticFormat, setStaticFormat] = useState<StaticFormat>(StaticFormat.IMAGEM_UNICA);
   const [pillar, setPillar] = useState<string>('');
-  const [signalSource, setSignalSource] = useState<string>('');
-  const [signalContent, setSignalContent] = useState('');
   const [error, setError] = useState('');
-
-  const isSignal = stage === Stage.SINAIS_MERCADO;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,8 +29,6 @@ export default function CreateCardModal({ onClose }: Props) {
         contentType,
         ...(contentType === ContentType.ESTATICO ? { staticFormat } : {}),
         ...(pillar ? { pillar } : {}),
-        ...(isSignal && signalSource ? { signalSource } : {}),
-        ...(isSignal && signalContent ? { signalContent } : {}),
       });
       onClose();
     } catch (err) {
@@ -114,24 +109,6 @@ export default function CreateCardModal({ onClose }: Props) {
               </select>
             </div>
           </div>
-
-          {isSignal && (
-            <>
-              <div>
-                <label className="label-base">Fonte do sinal</label>
-                <select className="input-base" value={signalSource} onChange={(e) => setSignalSource(e.target.value)}>
-                  <option value="">—</option>
-                  {Object.values(SignalSource).map((s) => (
-                    <option key={s} value={s}>{SIGNAL_LABELS[s]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label-base">Conteúdo do sinal</label>
-                <textarea className="input-base h-24 resize-none" value={signalContent} onChange={(e) => setSignalContent(e.target.value)} placeholder="Cole aqui o print/transcrição/comentário…" />
-              </div>
-            </>
-          )}
 
           {error && <p className="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">{error}</p>}
 

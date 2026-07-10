@@ -92,13 +92,10 @@ export class PipelineService {
   }
 
   private checkPreconditions(card: CardSnapshot, from: Stage, to: Stage): TransitionResult {
+    // Gates do pipeline enxuto de 9 etapas (PRD-011). As etapas removidas (Sinais,
+    // Direção, Copy, Gravado, Agendado, Distribuição, Análise, Reciclar) não têm gate:
+    // são inalcançáveis pelo fluxo ativo.
     switch (to) {
-      case Stage.IDEIAS_BRUTAS:
-        if (from !== Stage.SINAIS_MERCADO) break;
-        if (!card.signalSource) return err('MISSING_FIELD', 'Fonte do sinal (signalSource) é obrigatória.');
-        if (!card.signalContent) return err('MISSING_FIELD', 'Conteúdo do sinal é obrigatório.');
-        break;
-
       case Stage.IDEIAS_VALIDADAS:
         if (from !== Stage.IDEIAS_BRUTAS) break;
         if (!card.title || card.title.trim().length < 3) return err('MISSING_FIELD', 'Título resumível em uma frase é obrigatório.');
@@ -135,34 +132,26 @@ export class PipelineService {
         break;
       }
 
-      case Stage.DIRECAO_CRIATIVA: {
+      // Roteiro agora reúne roteiro + direção criativa + copy (PRD-011): este gate
+      // funde os antigos ROTEIRO→DIRECAO, DIRECAO→PRONTO e COPY→AGENDADO.
+      case Stage.PRONTO_PARA_GRAVAR: {
         if (from !== Stage.ROTEIRO) break;
         const s = card.script;
-        if (!s) return err('MISSING_FIELD', 'Roteiro não preenchido.');
-        if (!s.dor || !s.quebra || !s.mecanismo || !s.beneficio || !s.cta) {
+        if (!s || !s.dor || !s.quebra || !s.mecanismo || !s.beneficio || !s.cta) {
           return err('MISSING_FIELD', 'Roteiro incompleto — todas as 5 seções são obrigatórias.');
         }
-        if (s.durationSec < 30 || s.durationSec > 45) {
-          return err('VALIDATION_INCOMPLETE', 'Duração deve ser entre 30 e 45 segundos.');
-        }
+        if (!card.creative?.format) return err('MISSING_FIELD', 'Formato de direção criativa não definido.');
+        const copy = card.copy;
+        if (!copy?.caption) return err('MISSING_FIELD', 'Legenda (copy) é obrigatória.');
+        if (!copy.ctaVariations?.length) return err('MISSING_FIELD', 'Pelo menos 1 variação de CTA é obrigatória.');
         break;
       }
 
-      case Stage.PRONTO_PARA_GRAVAR:
-        if (from !== Stage.DIRECAO_CRIATIVA) break;
-        if (!card.creative?.format) return err('MISSING_FIELD', 'Formato de direção criativa não definido.');
-        break;
-
-      case Stage.GRAVADO:
+      case Stage.EM_EDICAO:
         if (from !== Stage.PRONTO_PARA_GRAVAR) break;
         if (!checklistComplete(card, Stage.PRONTO_PARA_GRAVAR)) {
           return err('CHECKLIST_INCOMPLETE', 'Checklist de pré-produção incompleto.');
         }
-        break;
-
-      case Stage.EM_EDICAO:
-        if (from !== Stage.GRAVADO) break;
-        if (!card.rawFootageUrl) return err('MISSING_FIELD', 'Link da gravação bruta (rawFootageUrl) é obrigatório.');
         break;
 
       case Stage.REVISAO_RETENCAO:
@@ -173,48 +162,14 @@ export class PipelineService {
         if (!card.editedVideoUrl) return err('MISSING_FIELD', 'Link do vídeo editado (editedVideoUrl) é obrigatório.');
         break;
 
-      case Stage.COPY_LEGENDA_CTA: {
+      case Stage.PUBLICADO: {
+        // Publicar é sempre manual (nunca automatizado). Gate = retenção aprovada.
         if (from !== Stage.REVISAO_RETENCAO) break;
         const rr = card.retentionReview;
         if (!rr) return err('GATE_NOT_PASSED', 'Revisão de retenção não realizada.');
         if (!rr.passed) return err('GATE_NOT_PASSED', 'Revisão de retenção não aprovada (≥3 respostas ruins). Retorno para edição necessário.');
         break;
       }
-
-      case Stage.AGENDADO: {
-        if (from !== Stage.COPY_LEGENDA_CTA) break;
-        const copy = card.copy;
-        if (!copy?.caption) return err('MISSING_FIELD', 'Caption/legenda é obrigatória.');
-        if (!copy.ctaVariations?.length) return err('MISSING_FIELD', 'Pelo menos 1 variação de CTA é obrigatória.');
-        break;
-      }
-
-      case Stage.PUBLICADO: {
-        // Requer ação humana explícita — nunca automatizada
-        if (from !== Stage.AGENDADO) break;
-        const sched = card.schedule;
-        if (!sched?.objective || !sched.audience || !sched.cta || !sched.primaryMetric || !sched.hypothesis || !sched.scheduledFor) {
-          return err('MISSING_FIELD', 'Agendamento incompleto — todos os campos são obrigatórios.');
-        }
-        break;
-      }
-
-      case Stage.EM_DISTRIBUICAO:
-        // Sem pré-condição extra além de PUBLICADO anterior
-        break;
-
-      case Stage.ANALISE:
-        if (from !== Stage.EM_DISTRIBUICAO) break;
-        if (!checklistComplete(card, Stage.EM_DISTRIBUICAO)) {
-          return err('CHECKLIST_INCOMPLETE', 'Checklist de distribuição incompleto.');
-        }
-        break;
-
-      case Stage.ESCALAR_RECICLAR:
-        if (from !== Stage.ANALISE) break;
-        if (!card.metricSnapshots?.length) return err('MISSING_FIELD', 'Pelo menos 1 snapshot de métricas é obrigatório.');
-        if (!card.contentClass) return err('MISSING_FIELD', 'Classificação da peça (contentClass) é obrigatória.');
-        break;
 
       default:
         break;

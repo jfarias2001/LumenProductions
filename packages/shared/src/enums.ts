@@ -1,4 +1,9 @@
-// Etapas do pipeline (18 colunas — SPEC-001 §6.3 / §7.1)
+// Valores de estágio (mantidos por compat com o banco e com o arquivamento).
+// Desde o PRD-011, o pipeline ATIVO usa apenas as 9 etapas de STAGE_ORDER; as
+// demais (SINAIS_MERCADO, DIRECAO_CRIATIVA, COPY_LEGENDA_CTA, GRAVADO, AGENDADO,
+// EM_DISTRIBUICAO, ANALISE, ESCALAR_RECICLAR) ficam fora do pipeline — inalcançáveis
+// pelo board/stepper/gates, retidas só para dados legados. ARQUIVADO segue como
+// estado terminal de arquivamento (marcado junto com Card.archivedAt).
 export enum Stage {
   SINAIS_MERCADO = 'SINAIS_MERCADO',
   IDEIAS_BRUTAS = 'IDEIAS_BRUTAS',
@@ -20,25 +25,17 @@ export enum Stage {
   ARQUIVADO = 'ARQUIVADO',
 }
 
+// Pipeline ativo (9 etapas — PRD-011). Roteiro reúne roteiro + direção + copy.
 export const STAGE_ORDER: Stage[] = [
-  Stage.SINAIS_MERCADO,
   Stage.IDEIAS_BRUTAS,
   Stage.IDEIAS_VALIDADAS,
   Stage.ANGULO_DEFINIDO,
   Stage.HOOKS_EM_TESTE,
   Stage.ROTEIRO,
-  Stage.DIRECAO_CRIATIVA,
   Stage.PRONTO_PARA_GRAVAR,
-  Stage.GRAVADO,
   Stage.EM_EDICAO,
   Stage.REVISAO_RETENCAO,
-  Stage.COPY_LEGENDA_CTA,
-  Stage.AGENDADO,
   Stage.PUBLICADO,
-  Stage.EM_DISTRIBUICAO,
-  Stage.ANALISE,
-  Stage.ESCALAR_RECICLAR,
-  Stage.ARQUIVADO,
 ];
 
 // Pilares de conteúdo (PRD §8)
@@ -161,8 +158,8 @@ export enum StaticFormat {
 }
 
 /**
- * Fases criativas que têm conversa com a IA (PRD-003 §5.1).
- * As demais etapas (gravação, agendamento, distribuição, análise) não abrem chat.
+ * Fases criativas com geração de IA (PRD-003 §5.1 / PRD-011). Roteiro passou a
+ * cobrir direção + copy, então as etapas Direção/Copy/Reciclar saíram da lista.
  */
 export const CONVERSATIONAL_STAGES: Stage[] = [
   Stage.IDEIAS_BRUTAS,
@@ -170,9 +167,6 @@ export const CONVERSATIONAL_STAGES: Stage[] = [
   Stage.ANGULO_DEFINIDO,
   Stage.HOOKS_EM_TESTE,
   Stage.ROTEIRO,
-  Stage.DIRECAO_CRIATIVA,
-  Stage.COPY_LEGENDA_CTA,
-  Stage.ESCALAR_RECICLAR,
 ];
 
 export function isConversationalStage(stage: Stage): boolean {
@@ -190,7 +184,7 @@ export const STAGE_GOAL: Partial<Record<Stage, string>> = {
   [Stage.HOOKS_EM_TESTE]:
     'Gere e refine hooks de abertura (primeiros 2 segundos). Busque variações que parem o scroll e entrem direto na dor.',
   [Stage.ROTEIRO]:
-    'Escreva e refine o roteiro de 30–45s seguindo dor → quebra de crença → mecanismo → benefício → CTA. Itere conforme o pedido (encurtar, intensificar, trocar CTA).',
+    'Etapa única de criação (PRD-011): escreva o roteiro de 30–45s (dor → quebra → mecanismo → benefício → CTA), defina a direção criativa (formato, cortes/slides, tipografia, paleta) e a copy/legenda + variações de CTA.',
   [Stage.DIRECAO_CRIATIVA]:
     'Defina a direção criativa. Para VÍDEO: cortes, ritmo, b-roll, textos de tela, trilha. Para ESTÁTICO: estrutura de slides/post, elementos visuais por slide, paleta e hierarquia.',
   [Stage.COPY_LEGENDA_CTA]:

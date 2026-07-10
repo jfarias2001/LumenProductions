@@ -12,6 +12,9 @@ export interface CardSummary {
   pillar?: string;
   awareness?: string;
   contentClass?: string;
+  contentType?: string;
+  staticFormat?: string | null;
+  isAd?: boolean;
   assignee?: { id: string; name: string; role: string };
   validation?: { total: number; verdict: string };
   updatedAt: string;

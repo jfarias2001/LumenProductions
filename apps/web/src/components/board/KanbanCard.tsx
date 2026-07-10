@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../../lib/utils.js';
 import { useUIStore } from '../../store/ui.js';
-import { PILLAR_LABELS, PILLAR_BADGE, CLASS_BADGE, VERDICT_BADGE } from '../../lib/labels.js';
+import { PILLAR_LABELS, PILLAR_BADGE, CLASS_BADGE, VERDICT_BADGE, publicationFormatLabel } from '../../lib/labels.js';
 import type { CardSummary } from '../../hooks/useBoard.js';
 
 interface Props {
@@ -32,6 +32,11 @@ export default function KanbanCard({ card, dragging }: Props) {
       <p className="text-[13px] font-medium text-slate-100 line-clamp-2 mb-2 leading-snug">{card.title}</p>
 
       <div className="flex flex-wrap gap-1">
+        {/* Formato da publicação (PRD-011) */}
+        <span className="badge bg-surface-700 text-slate-300">{publicationFormatLabel(card)}</span>
+        {card.isAd && (
+          <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/40">📣 Anúncio</span>
+        )}
         {card.pillar && (
           <span className={cn('badge', PILLAR_BADGE[card.pillar] ?? 'bg-surface-700 text-slate-400')}>
             {PILLAR_LABELS[card.pillar] ?? card.pillar}

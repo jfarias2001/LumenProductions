@@ -95,3 +95,14 @@ export const VERDICT_BADGE: Record<string, string> = {
 export function enumLabel(value: string): string {
   return value.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 }
+
+/**
+ * Rótulo curto do FORMATO DA PUBLICAÇÃO para o card do board (PRD-011):
+ * "Reel" (vídeo), "Imagem única"/"Carrossel" (estático). Anúncio tem selo próprio.
+ */
+export function publicationFormatLabel(card: { contentType?: string; staticFormat?: string | null }): string {
+  if (String(card.contentType) === ContentType.ESTATICO) {
+    return card.staticFormat === StaticFormat.CARROSSEL ? 'Carrossel' : 'Imagem única';
+  }
+  return 'Reel';
+}

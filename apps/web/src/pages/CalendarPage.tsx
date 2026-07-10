@@ -90,6 +90,7 @@ function ItemCard({ item, calendarId }: { item: CalendarItem; calendarId: string
 function CalendarDetailView({ id, aiOff }: { id: string; aiOff: boolean }) {
   const { data, isLoading } = useCalendar(id);
   const autoProduce = useAutoProduceCalendar(id);
+  const [detailView, setDetailView] = useState<'list' | 'calendar'>('calendar');
   if (isLoading || !data) return <p className="text-slate-500 text-sm">Carregando calendário…</p>;
 
   const pending = data.items.filter((it) => !it.cardId).length;
@@ -139,21 +140,135 @@ function CalendarDetailView({ id, aiOff }: { id: string; aiOff: boolean }) {
           )}
         </div>
       </div>
-      {weeks.map((w) => {
-        const weekItems = itemsByWeek(w);
-        if (!weekItems.length) return null;
-        return (
-          <div key={w}>
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Semana {w}</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {weekItems.map((it) => <ItemCard key={it.id} item={it} calendarId={data.id} />)}
+
+      {/* Alternância Calendário (grade mensal) ↔ Lista (por semana) */}
+      <div className="flex gap-1.5">
+        <button
+          onClick={() => setDetailView('calendar')}
+          className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${detailView === 'calendar' ? 'bg-brand-600/20 text-brand-300' : 'text-slate-500 hover:text-slate-300'}`}
+        >📅 Calendário</button>
+        <button
+          onClick={() => setDetailView('list')}
+          className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${detailView === 'list' ? 'bg-brand-600/20 text-brand-300' : 'text-slate-500 hover:text-slate-300'}`}
+        >☰ Lista</button>
+      </div>
+
+      {detailView === 'calendar' ? (
+        <CalendarMonthView items={data.items} startDate={data.startDate} />
+      ) : (
+        weeks.map((w) => {
+          const weekItems = itemsByWeek(w);
+          if (!weekItems.length) return null;
+          return (
+            <div key={w}>
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Semana {w}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {weekItems.map((it) => <ItemCard key={it.id} item={it} calendarId={data.id} />)}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })
+      )}
     </div>
   );
 }
+
+// ── Visualização em grade mensal (PRD-011) ────────────────────────────────────
+const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const monthTitleFmt = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });
+
+/** Chave YYYY-MM-DD no fuso local (agrupa itens por dia). */
+function dayKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Rótulo curto do formato para a grade (mês). */
+function shortFormat(item: CalendarItem): string {
+  if (item.isAd) return '📣 Anúncio';
+  if (item.contentType === 'ESTATICO') return item.staticFormat === 'CARROSSEL' ? 'Carrossel' : 'Imagem';
+  return 'Reel';
+}
+
+function CalendarMonthView({ items, startDate }: { items: CalendarItem[]; startDate: string }) {
+  const [cursor, setCursor] = useState(() => {
+    const d = new Date(startDate);
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+
+  // Agrupa itens por dia.
+  const byDay = new Map<string, CalendarItem[]>();
+  for (const it of items) {
+    const k = dayKey(new Date(it.scheduledFor));
+    const arr = byDay.get(k);
+    if (arr) arr.push(it); else byDay.set(k, [it]);
+  }
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay(); // 0=Dom
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayKey = dayKey(new Date());
+
+  // Células: preenchimento inicial vazio + dias do mês.
+  const cells: (number | null)[] = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="surface-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <button onClick={() => setCursor(new Date(year, month - 1, 1))} className="btn-ghost text-sm px-2 py-1">‹</button>
+        <h4 className="text-sm font-semibold text-white capitalize">{monthTitleFmt.format(cursor)}</h4>
+        <button onClick={() => setCursor(new Date(year, month + 1, 1))} className="btn-ghost text-sm px-2 py-1">›</button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {WEEKDAYS.map((w) => (
+          <div key={w} className="text-center text-[10px] font-semibold text-slate-500 uppercase py-1">{w}</div>
+        ))}
+        {cells.map((day, i) => {
+          if (day === null) return <div key={`e${i}`} className="min-h-[76px] rounded-lg bg-surface-900/40" />;
+          const k = dayKey(new Date(year, month, day));
+          const dayItems = byDay.get(k) ?? [];
+          const isToday = k === todayKey;
+          return (
+            <div key={k} className={`min-h-[76px] rounded-lg border p-1 space-y-0.5 ${isToday ? 'border-brand-500/60 bg-brand-600/5' : 'border-surface-700 bg-surface-850'}`}>
+              <div className={`text-[10px] font-medium ${isToday ? 'text-brand-300' : 'text-slate-500'}`}>{day}</div>
+              {dayItems.map((it) => (
+                <div
+                  key={it.id}
+                  title={`${it.title} — ${shortFormat(it)}${it.cardId ? ' (no pipeline)' : ''}`}
+                  className={`text-[10px] leading-tight rounded px-1 py-0.5 truncate border-l-2 ${it.isAd ? 'border-amber-400 bg-amber-500/10 text-amber-200' : 'bg-surface-800 text-slate-300'} ${PILLAR_DOT[it.pillar ?? ''] ?? ''}`}
+                >
+                  {it.cardId ? '✓ ' : ''}{it.isAd ? '📣 ' : ''}{it.title}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 pt-1 border-t border-surface-700">
+        <span>✓ = já no pipeline</span>
+        <span>📣 = anúncio</span>
+        <span>Borda colorida = pilar</span>
+      </div>
+    </div>
+  );
+}
+
+/** Cor de borda-esquerda por pilar (grade mensal). */
+const PILLAR_DOT: Record<string, string> = {
+  DOR_DONO_AGENCIA: 'border-l-rose-400',
+  QUEBRA_CRENCA: 'border-l-orange-400',
+  OPORTUNIDADE_TICKET: 'border-l-emerald-400',
+  PRODUTO_MECANISMO: 'border-l-brand-400',
+  PROVA_BASTIDORES: 'border-l-cyan-400',
+  OBJECOES: 'border-l-amber-400',
+  AUTORIDADE: 'border-l-violet-400',
+};
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);

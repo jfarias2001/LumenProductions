@@ -480,6 +480,36 @@ Ajustes pós-uso real (sem novo PRD), sobre PRD-009/PRD-010.
 
 ---
 
+## [2026-07-10] PRD-011 — Pipeline enxuto (18→9) + formato no dashboard + visualização de calendário
+
+**Motivação (relato do usuário):** (1) mostrar o **formato da publicação no dashboard**; (2) criar uma **visualização de calendário**; (3) **excluir/mesclar etapas** do pipeline: Sinais do Mercado (excluir); Direção Criativa e Copy/Legenda/CTA (juntar com Roteiro); Gravado, Agendado, Em Distribuição, Análise, Escalar/Reciclar, Arquivado (excluir como coluna).
+
+**Decisões (travadas na análise):** os valores do enum `Stage` são **mantidos no banco** (sem migração destrutiva; arquivar continua marcando `stage=ARQUIVADO`+`archivedAt`); o pipeline **ativo** passa a ser dirigido por um `STAGE_ORDER` de **9 etapas**; **Roteiro** absorve direção + copy (gate e geração de IA cobrem os três); a visualização de calendário é uma **grade mensal** dos itens datados do calendário editorial.
+
+### Novo pipeline (9 etapas)
+Ideias Brutas → Ideias Validadas → Ângulo Definido → Hooks em Teste → **Roteiro (roteiro+direção+copy)** → Pronto para Gravar → Em Edição → Revisão de Retenção → Publicado.
+
+### Shared (`packages/shared`)
+- `enums.ts`: `STAGE_ORDER` reduzido a 9 etapas; `CONVERSATIONAL_STAGES` = `[IDEIAS_BRUTAS, IDEIAS_VALIDADAS, ANGULO_DEFINIDO, HOOKS_EM_TESTE, ROTEIRO]`; `STAGE_GOAL[ROTEIRO]` reescrito (roteiro+direção+copy). Enum `Stage` mantém os 18 valores (compat). `constants.ts`: rótulo de `ROTEIRO` = "Roteiro & Copy". `dist` rebuildado.
+
+### Backend (`apps/api`)
+- **Prisma**: `Card.stage` default `SINAIS_MERCADO → IDEIAS_BRUTAS`. Migration `20260710000000_lean_pipeline` (idempotente): altera o default e **realoca** cards presos em etapas removidas para a etapa ativa mais próxima (SINAIS→IDEIAS_BRUTAS, DIRECAO→ROTEIRO, COPY→REVISAO_RETENCAO, GRAVADO→EM_EDICAO, AGENDADO/DISTRIBUICAO/ANALISE/RECICLAR→PUBLICADO; ARQUIVADO intacto).
+- **`pipeline.service.ts`**: `checkPreconditions` reescrito para as novas adjacências. Gate **ROTEIRO→PRONTO_PARA_GRAVAR** funde os antigos (roteiro 5 seções + `creative.format` + `copy.caption`/CTA). **PRONTO→EM_EDICAO** = checklist pré-produção. **REVISAO_RETENCAO→PUBLICADO** = retenção aprovada. Mantido: `→ARQUIVADO` sempre; sem pular etapas.
+- **`ai.service.ts`**: geração/consolidação da fase `ROTEIRO` passa a produzir também a **direção criativa** (`direction`+`persistDirection`) além de roteiro+copy. Auto-produção do calendário inalterada (com `STAGE_ORDER` menor, para em PRONTO_PARA_GRAVAR).
+- **`seed.ts`**: removido o template de checklist da etapa removida `EM_DISTRIBUICAO`.
+
+### Frontend (`apps/web`)
+- **Dashboard**: `CardSummary` ganhou `contentType`/`staticFormat`/`isAd` (já retornados pelo `GET /board`); `KanbanCard` mostra selo de formato (**Reel** / **Imagem única** / **Carrossel**) + `📣 Anúncio`. Helper `publicationFormatLabel` em `labels.ts`.
+- **`CardDetail`**: `STAGE_META` reescrito (Roteiro/Pronto/Em Edição/Retenção/Publicado); `StagePanel` da etapa Roteiro agrupa **Roteiro + Direção criativa + Copy** (novo `StageSection`); Em Edição ganhou campo opcional de captação bruta; Publicado é o fim do fluxo.
+- **`CreateCardModal`**: estágio inicial `IDEIAS_BRUTAS` (opções: Ideias Brutas/Validadas); removida a captura de sinal.
+- **`CalendarPage`**: no detalhe do calendário, alternância **📅 Calendário ↔ ☰ Lista**; nova `CalendarMonthView` (grade mensal 7 colunas, navegação de mês, peça no dia do `scheduledFor` com cor de pilar, selo de formato, `📣` e `✓` quando já no pipeline).
+
+### Estado atual
+- Board com 9 colunas e formato visível em cada card; card evolui Ideias Brutas → … → Publicado pelos novos gates; auto-produção do calendário leva até Pronto para Gravar; calendário editorial tem visão de grade mensal. Arquivar segue funcionando. `PipelineService` continua sendo o único ponto de gate.
+- `pnpm --filter api typecheck`, `pnpm --filter web typecheck` e `vite build` do web OK; `prisma generate` OK; `dist` do shared rebuildado. Migration criada (aplicar com `prisma migrate deploy`).
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

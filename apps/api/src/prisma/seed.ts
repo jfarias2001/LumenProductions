@@ -90,16 +90,7 @@ async function main() {
         'Compreensível sem áudio',
       ],
     },
-    {
-      stage: Stage.EM_DISTRIBUICAO,
-      items: [
-        'Responder comentários das primeiras 24h',
-        'Fixar comentário estratégico',
-        'Enviar para leads mornos via direct',
-        'Repostar em stories',
-        'Usar como argumento comercial no CRM',
-      ],
-    },
+    // EM_DISTRIBUICAO saiu do pipeline ativo (PRD-011) — sem template de checklist.
   ];
 
   for (const t of templates) {

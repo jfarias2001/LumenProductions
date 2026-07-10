@@ -25,15 +25,15 @@ const STAGE_META: Record<Stage, { job: string; gate: string }> = {
   [Stage.IDEIAS_VALIDADAS]: { job: 'Valide o potencial da ideia (6 critérios, 0–3).', gate: 'Nota mínima SEGUIR_ROTEIRO (≥13) — a IA se auto-corrige para atingi-la.' },
   [Stage.ANGULO_DEFINIDO]: { job: 'Explore ângulos narrativos e escolha o mais forte.', gate: 'Selecione ao menos 1 ângulo.' },
   [Stage.HOOKS_EM_TESTE]: { job: 'Gere e refine hooks de abertura (primeiros 2 segundos).', gate: 'Mínimo 5 hooks, com 1 marcado como ESCOLHIDO.' },
-  [Stage.ROTEIRO]: { job: 'Escreva o roteiro: dor → quebra → mecanismo → benefício → CTA.', gate: 'Roteiro com as 5 seções e duração entre 30–45s.' },
+  [Stage.ROTEIRO]: { job: 'Etapa única de criação: roteiro (dor → quebra → mecanismo → benefício → CTA), direção criativa e copy/legenda.', gate: 'Roteiro completo + formato de direção definido + legenda com ao menos 1 CTA.' },
   [Stage.DIRECAO_CRIATIVA]: { job: 'Defina a direção criativa (formato, cortes/slides, paleta).', gate: 'Formato de direção criativa definido.' },
   [Stage.PRONTO_PARA_GRAVAR]: { job: 'Prepare a pré-produção.', gate: 'Checklist de pré-produção completo.' },
   [Stage.GRAVADO]: { job: 'Grave e registre o link da captação bruta.', gate: 'Link da gravação bruta preenchido.' },
-  [Stage.EM_EDICAO]: { job: 'Edite e registre o link do vídeo editado.', gate: 'Checklist de retenção + link do vídeo editado.' },
+  [Stage.EM_EDICAO]: { job: 'Edite e registre o link do vídeo editado (e a captação bruta, se houver).', gate: 'Checklist de retenção + link do vídeo editado.' },
   [Stage.REVISAO_RETENCAO]: { job: 'Revise a retenção da peça editada.', gate: 'Revisão de retenção aprovada (<3 respostas ruins).' },
   [Stage.COPY_LEGENDA_CTA]: { job: 'Escreva a legenda e as variações de CTA.', gate: 'Legenda + ao menos 1 variação de CTA.' },
   [Stage.AGENDADO]: { job: 'Agende a publicação com objetivo, público e hipótese.', gate: 'Agendamento completo (todos os campos).' },
-  [Stage.PUBLICADO]: { job: 'Publique manualmente na plataforma.', gate: 'Publicação é manual — confirme após postar.' },
+  [Stage.PUBLICADO]: { job: 'Publique manualmente no Instagram.', gate: 'Publicação é manual — mova o card ao publicar.' },
   [Stage.EM_DISTRIBUICAO]: { job: 'Distribua nos demais canais.', gate: 'Checklist de distribuição completo.' },
   [Stage.ANALISE]: { job: 'Registre métricas e classifique a peça.', gate: '1 snapshot de métricas + classificação da peça.' },
   [Stage.ESCALAR_RECICLAR]: { job: 'Transforme a peça vencedora em ativos derivados.', gate: '—' },
@@ -239,8 +239,16 @@ function StagePanel({ stage, cardId, card, onUpdate }: { stage: Stage; cardId: s
     case Stage.ANGULO_DEFINIDO:
     case Stage.HOOKS_EM_TESTE:
       return <div className="space-y-5">{copiloto}<AngulosTab cardId={cardId} card={card} /></div>;
+    // Roteiro (PRD-011) reúne roteiro + direção criativa + copy numa só etapa.
     case Stage.ROTEIRO:
-      return <div className="space-y-5">{copiloto}<RoteiroTab cardId={cardId} card={card} /></div>;
+      return (
+        <div className="space-y-5">
+          {copiloto}
+          <StageSection title="Roteiro"><RoteiroTab cardId={cardId} card={card} /></StageSection>
+          <StageSection title="Direção criativa"><DirecaoTab cardId={cardId} card={card} /></StageSection>
+          <StageSection title="Copy / legenda / CTA"><CopyTab cardId={cardId} card={card} /></StageSection>
+        </div>
+      );
     case Stage.DIRECAO_CRIATIVA:
       return <div className="space-y-5">{copiloto}<DirecaoTab cardId={cardId} card={card} /></div>;
     case Stage.PRONTO_PARA_GRAVAR:
@@ -248,7 +256,7 @@ function StagePanel({ stage, cardId, card, onUpdate }: { stage: Stage; cardId: s
     case Stage.GRAVADO:
       return <div className="space-y-5"><MediaTab card={card} onUpdate={onUpdate} field="rawFootageUrl" label="Link da gravação bruta" /><ChecklistsTab cardId={cardId} /></div>;
     case Stage.EM_EDICAO:
-      return <div className="space-y-5"><MediaTab card={card} onUpdate={onUpdate} field="editedVideoUrl" label="Link do vídeo editado" /><ChecklistsTab cardId={cardId} /></div>;
+      return <div className="space-y-5"><MediaTab card={card} onUpdate={onUpdate} field="rawFootageUrl" label="Link da gravação bruta (opcional)" /><MediaTab card={card} onUpdate={onUpdate} field="editedVideoUrl" label="Link do vídeo editado" /><ChecklistsTab cardId={cardId} /></div>;
     case Stage.REVISAO_RETENCAO:
       return <RetencaoTab cardId={cardId} card={card} />;
     case Stage.COPY_LEGENDA_CTA:
@@ -281,6 +289,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-slate-500">{children}</p>;
+}
+
+/** Subseção nomeada — usada para agrupar roteiro/direção/copy na etapa Roteiro (PRD-011). */
+function StageSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-surface-800 pt-4 first:border-t-0 first:pt-0">
+      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">{title}</h4>
+      {children}
+    </section>
+  );
 }
 
 // ── Template (fundamentos) — modo sinal ou ideia ──────────────────────────────

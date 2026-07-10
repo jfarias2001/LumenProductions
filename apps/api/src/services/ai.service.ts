@@ -612,6 +612,7 @@ async function persistStageFromSource(
       return { entity: 'angles', data: { angles: anglesList, hooks: hooksList } };
     }
 
+    // Roteiro (PRD-011) reúne roteiro + copy + direção criativa: gera as três de uma vez.
     case Stage.ROTEIRO:
     case Stage.COPY_LEGENDA_CTA: {
       const out = await copy(cardId, userId, source);
@@ -628,7 +629,10 @@ async function persistStageFromSource(
       if (out.screenTexts.length) {
         await prisma.card.update({ where: { id: cardId }, data: { screenTexts: out.screenTexts } });
       }
-      return { entity: 'copy', data: { script, copy: copyContent, screenTexts: out.screenTexts } };
+      // Direção criativa (formato + decupagem/elementos gráficos) na mesma etapa.
+      const dOut = await direction(cardId, userId, source);
+      const creative = await persistDirection(cardId, dOut);
+      return { entity: 'copy', data: { script, copy: copyContent, creative, screenTexts: out.screenTexts } };
     }
 
     case Stage.DIRECAO_CRIATIVA: {
