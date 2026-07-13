@@ -510,6 +510,37 @@ Ideias Brutas → Ideias Validadas → Ângulo Definido → Hooks em Teste → *
 
 ---
 
+## [2026-07-13] PRD-012 — Roteiros no modelo de negócio (white label / receita recorrente)
+
+**Motivação (relato do usuário):** *"os roteiros que o sistema cria estão muito genéricos, falando de CRM e coisas básicas; precisam abordar o modelo de negócio da empresa — white label, nova opção de faturamento, receita recorrente para empresas."* O usuário forneceu o texto integral da landing page como fonte do posicionamento e perguntou se valia trocar o modelo de IA.
+
+**Diagnóstico (a causa é contexto, não modelo):** (1) o `CompanyProfile` **nunca foi semeado** — o `seed.ts` só criava o `AppSetting` — então `buildCompanyContext()` voltava vazio e a IA gerava sem nenhum dado do modelo white label; (2) o `GOLDEN_RULE_PROMPT` mirava "dono de agência que recebe leads e converte pouco / nunca venda o CRM", empurrando o ângulo de conversão de leads da própria agência em vez da transformação de modelo (serviço → produto/assinatura white label).
+
+**Decisões (travadas com o usuário):** corrigir **contexto agora, modelo depois** (sem trocar o `gpt-4o-mini`); carregar a base **via script de seed** que roda no banco atual.
+
+### Shared (`packages/shared`)
+- `constants.ts`: `GOLDEN_RULE_PROMPT` reescrito para o modelo **white label / receita recorrente** — persona = dono de agência que vive só de serviço e quer recorrência; mecanismo = virar operação white label (revende plataforma própria com a marca do parceiro, Lumen nos bastidores, cobra o cliente e paga por cliente ativo → margem recorrente, vira dono de produto); proíbe tratar como "só mais um CRM" ou focar em "converter leads da própria agência"; mantém a sequência dor → falha do processo → mecanismo → Lumen e as guardas de JSON/anti-injection. `dist` rebuildado.
+
+### Backend (`apps/api`)
+- **Novo `src/prisma/company-knowledge.ts`**: `LUMEN_COMPANY_PROFILE` (tipado por `CompanyProfileInput`) — fonte única do perfil da Lumen a partir da LP: posicionamento white label, oferta (80+ features por objetivo: vender mais / reter / valor percebido / operar como SaaS + receita por assinatura), personas (dono de agência de serviço + **anti-persona** "não é público"), dores, tom de voz, diferenciais (implantação/marca/suporte vs. ferramenta barata), provas (+300 / +8k / +R$400k com ressalva), do's/don'ts, palavras-chave, contatos.
+- **Novo `src/prisma/seed-knowledge.ts`** (standalone, idempotente — o script que o usuário roda): upsert do `CompanyProfile` singleton + upsert do `AppSetting.goldenRulePrompt` para a nova Regra de Ouro (o valor em uso vem do `AppSetting`, não da constante). `create` do `AppSetting` traz os defaults obrigatórios (mix/pillarGroup/weekly).
+- **`seed.ts`**: importa `LUMEN_COMPANY_PROFILE` e faz upsert do `CompanyProfile` (instalações novas); `AppSetting` passou a **refrescar** `goldenRulePrompt` no `update` (antes `{}`).
+- **`package.json`**: novo script `db:seed:knowledge`.
+- Sem mudança em `ai.service`/provider/rotas/`pipeline.service`/schema/migrations — a base já é injetada por `buildCompanyContext()`.
+
+### Frontend (`apps/web`)
+- Sem mudança de código — a tela `/empresa` (`CompanyProfilePage`) passa a exibir o perfil populado e continua editável.
+
+### Estado atual
+- Após rodar `pnpm --filter api db:seed:knowledge`, a Base da Empresa fica preenchida com o modelo white label e a Regra de Ouro em uso reflete o novo enquadramento; novas gerações (ideia/roteiro/calendário/anúncio) passam a abordar white label, marca própria, margem recorrente e as provas, em vez de "CRM genérico". Pipeline, gates e schema **inalterados**; sem migração.
+- `pnpm --filter @content-engine/shared build`, `pnpm --filter api typecheck` e `pnpm --filter web typecheck` OK. **Execução do seed + geração real são verificação de deploy** (dependem de Postgres e `OPENAI_API_KEY`, indisponíveis no ambiente de desenvolvimento).
+
+### Próximos passos sugeridos
+- Após reavaliar os roteiros, decidir se sobe o modelo das gerações criativas (roteiro/copy, anúncio, direção, calendário) para gpt-4o/gpt-4.1 — o provider (`AIProvider`) já aceita `model` por chamada; bastaria o `AI_DEFAULT_MODEL` ou um override por tarefa.
+- Opcional: expor a edição da Regra de Ouro (`AppSetting.goldenRulePrompt`) na UI (hoje só via seed/banco).
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

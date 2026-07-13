@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx src/prisma/seed.ts",
+    "db:seed:knowledge": "tsx src/prisma/seed-knowledge.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate"
   },

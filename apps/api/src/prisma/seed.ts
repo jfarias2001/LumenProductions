@@ -7,14 +7,15 @@ import {
   WEEKLY_TARGETS,
   RETENTION_QUESTIONS,
 } from '@content-engine/shared';
+import { LUMEN_COMPANY_PROFILE } from './company-knowledge.js';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // AppSetting singleton
+  // AppSetting singleton — refresca a Regra de Ouro para manter em sincronia com a constante (PRD-012).
   await prisma.appSetting.upsert({
     where: { id: 'singleton' },
-    update: {},
+    update: { goldenRulePrompt: GOLDEN_RULE_PROMPT },
     create: {
       id: 'singleton',
       mixTargets: {
@@ -32,6 +33,28 @@ async function main() {
       },
       goldenRulePrompt: GOLDEN_RULE_PROMPT,
     },
+  });
+
+  // CompanyProfile singleton — base de conhecimento (modelo white label) que embasa a IA (PRD-012).
+  const cp = LUMEN_COMPANY_PROFILE;
+  const companyData = {
+    companyName: cp.companyName,
+    about: cp.about,
+    offerings: cp.offerings,
+    personas: cp.personas as object,
+    mainPains: cp.mainPains,
+    toneOfVoice: cp.toneOfVoice,
+    differentiators: cp.differentiators,
+    proofCases: cp.proofCases,
+    dos: cp.dos,
+    donts: cp.donts,
+    keywords: cp.keywords,
+    links: cp.links,
+  };
+  await prisma.companyProfile.upsert({
+    where: { id: 'singleton' },
+    update: companyData,
+    create: { id: 'singleton', ...companyData },
   });
 
   // Admin user
