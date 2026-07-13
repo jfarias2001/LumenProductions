@@ -25,17 +25,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-950 flex items-center justify-center px-4 relative overflow-hidden">
-      {/* Glow de fundo */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-96 rounded-full bg-brand-600/20 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 right-0 h-72 w-72 rounded-full bg-ai-600/10 blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Aurora de fundo animada */}
+      <div className="pointer-events-none absolute -top-48 left-1/2 -translate-x-1/2 h-[28rem] w-[28rem] rounded-full bg-brand-600/25 blur-3xl animate-aurora" />
+      <div className="pointer-events-none absolute -bottom-24 -right-16 h-96 w-96 rounded-full bg-ai-600/15 blur-3xl animate-aurora-slow" />
+      <div className="pointer-events-none absolute top-1/3 -left-24 h-72 w-72 rounded-full bg-glow-500/10 blur-3xl animate-aurora-slow" />
 
-      <div className="w-full max-w-sm surface-card shadow-card p-8 relative animate-fade-in">
+      <div className="w-full max-w-sm surface-card p-8 relative animate-fade-up">
         <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-gradient-to-br from-brand-500 to-ai-500 text-white font-bold text-lg mb-3 shadow-glow">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-500 via-ai-500 to-glow-400 text-white font-bold text-xl mb-4 shadow-glow">
             ◑
           </div>
-          <h1 className="text-2xl font-bold text-white">Content Engine</h1>
+          <h1 className="text-2xl font-bold text-white font-display tracking-tight">
+            Content <span className="text-gradient">Engine</span>
+          </h1>
           <p className="text-sm text-slate-400 mt-1">Lumen Digital</p>
         </div>
 

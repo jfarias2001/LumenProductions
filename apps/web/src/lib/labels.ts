@@ -92,6 +92,30 @@ export const VERDICT_BADGE: Record<string, string> = {
   [ValidationVerdict.DESCARTAR]: 'bg-rose-500/15 text-rose-300',
 };
 
+/** Acento visual por estágio do pipeline enxuto (dot + hairline no topo da coluna). */
+export const STAGE_ACCENT: Record<string, { dot: string; bar: string }> = {
+  IDEIAS_BRUTAS: { dot: 'bg-sky-400', bar: 'from-sky-400/70' },
+  IDEIAS_VALIDADAS: { dot: 'bg-teal-400', bar: 'from-teal-400/70' },
+  ANGULO_DEFINIDO: { dot: 'bg-violet-400', bar: 'from-violet-400/70' },
+  HOOKS_EM_TESTE: { dot: 'bg-fuchsia-400', bar: 'from-fuchsia-400/70' },
+  ROTEIRO: { dot: 'bg-brand-400', bar: 'from-brand-400/70' },
+  PRONTO_PARA_GRAVAR: { dot: 'bg-amber-400', bar: 'from-amber-400/70' },
+  EM_EDICAO: { dot: 'bg-orange-400', bar: 'from-orange-400/70' },
+  REVISAO_RETENCAO: { dot: 'bg-rose-400', bar: 'from-rose-400/70' },
+  PUBLICADO: { dot: 'bg-emerald-400', bar: 'from-emerald-400/70' },
+};
+
+/** Barra lateral do card do board na cor do pilar. */
+export const PILLAR_BORDER: Record<string, string> = {
+  [Pillar.DOR_DONO_AGENCIA]: 'border-l-rose-400/80',
+  [Pillar.QUEBRA_CRENCA]: 'border-l-orange-400/80',
+  [Pillar.OPORTUNIDADE_TICKET]: 'border-l-emerald-400/80',
+  [Pillar.PRODUTO_MECANISMO]: 'border-l-brand-400/80',
+  [Pillar.PROVA_BASTIDORES]: 'border-l-cyan-400/80',
+  [Pillar.OBJECOES]: 'border-l-amber-400/80',
+  [Pillar.AUTORIDADE]: 'border-l-violet-400/80',
+};
+
 export function enumLabel(value: string): string {
   return value.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 }
@@ -105,4 +129,12 @@ export function publicationFormatLabel(card: { contentType?: string; staticForma
     return card.staticFormat === StaticFormat.CARROSSEL ? 'Carrossel' : 'Imagem única';
   }
   return 'Reel';
+}
+
+/** Glyph geométrico do formato (acompanha o rótulo no card do board). */
+export function publicationFormatGlyph(card: { contentType?: string; staticFormat?: string | null }): string {
+  if (String(card.contentType) === ContentType.ESTATICO) {
+    return card.staticFormat === StaticFormat.CARROSSEL ? '▤' : '◻';
+  }
+  return '▶';
 }

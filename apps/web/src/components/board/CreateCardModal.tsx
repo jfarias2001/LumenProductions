@@ -38,8 +38,8 @@ export default function CreateCardModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className="relative w-full max-w-md surface-card shadow-card p-6 animate-fade-in">
+      <div className="glass-overlay" onClick={onClose} />
+      <div className="relative w-full max-w-md surface-card p-6 animate-fade-up">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-white">Novo card</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white text-xl leading-none">×</button>

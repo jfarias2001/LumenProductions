@@ -55,9 +55,9 @@ export default function CardDetail({ cardId, onClose }: Props) {
   if (isLoading || !card) {
     return (
       <div className="fixed inset-0 z-40 flex">
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative ml-auto w-full max-w-2xl bg-surface-900 border-l border-surface-700 flex items-center justify-center">
-          <span className="text-slate-500">Carregando…</span>
+        <div className="glass-overlay" onClick={onClose} />
+        <div className="relative ml-auto w-full max-w-2xl bg-surface-900/95 backdrop-blur-xl border-l border-white/[0.08] flex items-center justify-center">
+          <span className="text-slate-500 animate-pulse">Carregando…</span>
         </div>
       </div>
     );
@@ -71,8 +71,8 @@ export default function CardDetail({ cardId, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-40 flex">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative ml-auto w-full max-w-2xl bg-surface-900 border-l border-surface-700 shadow-card flex flex-col overflow-hidden animate-slide-in">
+      <div className="glass-overlay" onClick={onClose} />
+      <div className="relative ml-auto w-full max-w-2xl bg-surface-900/95 backdrop-blur-xl border-l border-white/[0.08] shadow-card flex flex-col overflow-hidden animate-slide-in">
         {/* Header */}
         <div className="px-5 py-4 border-b border-surface-700 flex items-start justify-between gap-4 shrink-0">
           <div className="flex-1 min-w-0">
@@ -202,7 +202,7 @@ function AdvanceBar({ cardId, stage }: { cardId: string; stage: Stage }) {
   }
 
   return (
-    <div className="border-t border-surface-700 px-5 py-3 shrink-0 bg-surface-900">
+    <div className="border-t border-white/[0.06] px-5 py-3 shrink-0 bg-surface-900/95 backdrop-blur-md">
       <p className="text-[11px] text-slate-500 mb-2"><span className="text-slate-400 font-medium">Para avançar:</span> {STAGE_META[stage].gate}</p>
       <button onClick={advance} disabled={transition.isPending} className="btn-primary text-sm w-full">
         {transition.isPending ? 'Avançando…' : `Avançar → ${STAGE_LABELS[nextStage]}`}

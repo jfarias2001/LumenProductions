@@ -564,6 +564,34 @@ Ideias Brutas → Ideias Validadas → Ângulo Definido → Hooks em Teste → *
 
 ---
 
+## [2026-07-13] PRD-014 — Redesign visual "Lumen Glow"
+
+**Motivação (relato do usuário):** *"re-crie o visual do meu sistema, hoje é bem genérico — crie algo bonito."* O tema era o dark SaaS índigo padrão, sem identidade.
+
+**Escopo:** somente frontend/estilo (`apps/web`) — nenhuma mudança de fluxo, rota, dado, backend ou gate.
+
+### Direção de design
+Identidade **"Lumen Glow"** (Lumen = luz): fundo **aurora** (gradientes radiais índigo/violeta/ciano fixos ao viewport sobre canvas azul-noite), superfícies de **vidro** (translucidez + borda white/6% + realce interno), tipografia display (**Space Grotesk** em títulos/marca via `h1–h4 { font-display }`; Inter no corpo), **cor semântica** (acento por estágio do pipeline e barra lateral por pilar nos cards) e **luz como feedback** (gradiente brand→ai no botão primário, glows no hover/foco/drag-over).
+
+### Mudanças
+- **`tailwind.config.ts`**: `surface` re-tintada (azul-violeta profundo `#060714…#3a4070`), `brand` (índigo elétrico `#6d6af8`), ramp `ai` (violeta) e novo acento `glow` (ciano); `fontFamily.display`; sombras `card`/`card-hover`/`glow`/`glow-ai`/`inner-top`; keyframes `fade-up`/`aurora` (+`aurora-slow`).
+- **`index.css`**: aurora no `body` (3 radial-gradients, `background-attachment: fixed`); `h1–h4` em display; `::selection`; scrollbar 8px com hover brand. Classes: `.surface-card` (vidro), `.glass-overlay` (backdrop de modais), `.btn-primary` (gradiente + glow + `active:scale`), `.btn-ai` (glow violeta), `.btn-ghost`, `.input-base` (foco com anel luminoso), `.badge` (`ring-inset` + `tabular-nums`), nova `.text-gradient`.
+- **`index.html`**: fonte Space Grotesk (500–700).
+- **`labels.ts`**: `STAGE_ACCENT` (dot + hairline por estágio das 9 etapas), `PILLAR_BORDER` (barra lateral por pilar), `publicationFormatGlyph` (▶/◻/▤).
+- **`AppHeader`**: vidro com blur; logo orb gradiente com glow; "Content *Engine*" em display + text-gradient; navegação em pílulas (container `rounded-full`); status da IA com **dot pulsante** (ciano ativo); avatar-inicial com anel gradiente.
+- **`Login`**: 3 blobs aurora animados (`animate-aurora`), card de vidro `animate-fade-up`, título display.
+- **`Board`**: root sem fundo chapado (aurora do body aparece); toolbar de vidro; contagem de cards em chip; toast de gate com glow rosa.
+- **`KanbanColumn`**: `rounded-2xl bg-white/2`, hairline gradiente + dot na cor do estágio, contador em display tabular, estado vazio tracejado que vira "solte aqui" no drag-over, halo brand no `isOver`.
+- **`KanbanCard`**: borda esquerda 3px na cor do pilar, hover eleva (`-translate-y-0.5` + `shadow-card-hover`), glyph de formato, avatar com anel, dragging `rotate-2 shadow-glow`.
+- **`CardDetail`** (shell): overlay `.glass-overlay`, drawer `bg-surface-900/95 backdrop-blur-xl`, rodapé de avanço com blur. **`CreateCardModal`**: overlay de vidro + `fade-up`.
+- **`CalendarPage`/`CompanyProfilePage`**: roots transparentes; células do mês (hoje com anel brand, vazias `white/1.5%`); seleção da lista de calendários com `bg-brand-500/10`.
+
+### Estado
+- Sem mudança funcional: mesmas rotas, ações e gates; `PipelineService` intacto.
+- `pnpm --filter web typecheck` e `vite build` OK (CSS 40 kB gzip 7.3 kB). Deploy = rebuild só do `web`.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

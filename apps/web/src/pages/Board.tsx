@@ -75,12 +75,12 @@ export default function Board() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-surface-950">
+    <div className="flex flex-col h-screen">
       {/* Top bar */}
       <AppHeader />
 
       {/* Toolbar */}
-      <div className="bg-surface-900/60 border-b border-surface-800 px-4 py-2 flex items-center gap-2 shrink-0 flex-wrap">
+      <div className="bg-surface-900/40 backdrop-blur-md border-b border-white/[0.06] px-4 py-2 flex items-center gap-2 shrink-0 flex-wrap">
         <input
           className="input-base !w-56 !py-1.5"
           placeholder="Buscar por título…"
@@ -102,7 +102,9 @@ export default function Board() {
         {hasFilters && <button onClick={clearFilters} className="btn-ghost text-xs">Limpar</button>}
 
         <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-slate-500">{cards.length} cards</span>
+          <span className="text-[11px] text-slate-400 bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-1 tabular-nums">
+            {cards.length} cards
+          </span>
           <button onClick={() => setShowCreate(true)} className="btn-primary text-sm">
             <span className="text-base leading-none">+</span> Novo Card
           </button>
@@ -111,15 +113,15 @@ export default function Board() {
 
       {/* Gate error toast */}
       {gateError && (
-        <div className="fixed bottom-4 right-4 bg-rose-500/10 border border-rose-500/40 text-rose-200 text-sm px-4 py-3 rounded-xl shadow-card z-50 max-w-sm animate-slide-in">
-          <strong className="text-rose-300">Transição bloqueada:</strong> {gateError}
+        <div className="fixed bottom-4 right-4 bg-surface-900/90 backdrop-blur-md border border-rose-500/40 text-rose-200 text-sm px-4 py-3 rounded-2xl z-50 max-w-sm animate-slide-in shadow-[0_0_0_1px_rgba(244,63,94,0.15),0_8px_32px_-8px_rgba(244,63,94,0.35)]">
+          <strong className="text-rose-300">⬡ Transição bloqueada:</strong> {gateError}
         </div>
       )}
 
       {/* Board */}
       <div className="flex-1 overflow-x-auto overflow-y-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center h-full text-slate-500 text-sm">Carregando board…</div>
+          <div className="flex items-center justify-center h-full text-slate-500 text-sm animate-pulse">Carregando board…</div>
         ) : (
           <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             <div className="flex gap-3 p-4 h-full">

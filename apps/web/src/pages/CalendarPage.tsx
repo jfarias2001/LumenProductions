@@ -233,12 +233,12 @@ function CalendarMonthView({ items, startDate }: { items: MonthItem[]; startDate
           <div key={w} className="text-center text-[10px] font-semibold text-slate-500 uppercase py-1">{w}</div>
         ))}
         {cells.map((day, i) => {
-          if (day === null) return <div key={`e${i}`} className="min-h-[76px] rounded-lg bg-surface-900/40" />;
+          if (day === null) return <div key={`e${i}`} className="min-h-[76px] rounded-lg bg-white/[0.015]" />;
           const k = dayKey(new Date(year, month, day));
           const dayItems = byDay.get(k) ?? [];
           const isToday = k === todayKey;
           return (
-            <div key={k} className={`min-h-[76px] rounded-lg border p-1 space-y-0.5 ${isToday ? 'border-brand-500/60 bg-brand-600/5' : 'border-surface-700 bg-surface-850'}`}>
+            <div key={k} className={`min-h-[76px] rounded-lg border p-1 space-y-0.5 transition-colors ${isToday ? 'border-brand-400/60 bg-brand-500/10 ring-1 ring-brand-400/30' : 'border-white/[0.05] bg-surface-850/60'}`}>
               <div className={`text-[10px] font-medium ${isToday ? 'text-brand-300' : 'text-slate-500'}`}>{day}</div>
               {dayItems.map((it) => (
                 <div
@@ -359,7 +359,7 @@ export default function CalendarPage() {
   const canGenerate = form.title.trim() && form.objective.trim() && total >= 1 && total <= 60 && validPeriod;
 
   return (
-    <div className="flex flex-col h-screen bg-surface-950">
+    <div className="flex flex-col h-screen">
       <AppHeader />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
@@ -424,7 +424,7 @@ export default function CalendarPage() {
               <h2 className="text-sm font-bold text-white">Calendários</h2>
               {/* Visão geral unificada (todos os calendários) — ativa ao abrir a seção. */}
               <div
-                className={`rounded-lg px-3 py-2 cursor-pointer border ${selectedId === null ? 'border-brand-500/50 bg-surface-800' : 'border-surface-700 hover:bg-surface-800/60'}`}
+                className={`rounded-xl px-3 py-2 cursor-pointer border transition-colors ${selectedId === null ? 'border-brand-400/50 bg-brand-500/10' : 'border-white/[0.06] hover:bg-white/[0.04]'}`}
                 onClick={() => setSelectedId(null)}
               >
                 <p className="text-sm text-slate-100">📅 Geral (todos)</p>
@@ -432,7 +432,7 @@ export default function CalendarPage() {
               </div>
               {calendars.length === 0 && <p className="text-[11px] text-slate-500">Nenhum calendário ainda.</p>}
               {calendars.map((c) => (
-                <div key={c.id} className={`rounded-lg px-3 py-2 cursor-pointer border ${selectedId === c.id ? 'border-brand-500/50 bg-surface-800' : 'border-surface-700 hover:bg-surface-800/60'}`} onClick={() => setSelectedId(c.id)}>
+                <div key={c.id} className={`rounded-xl px-3 py-2 cursor-pointer border transition-colors ${selectedId === c.id ? 'border-brand-400/50 bg-brand-500/10' : 'border-white/[0.06] hover:bg-white/[0.04]'}`} onClick={() => setSelectedId(c.id)}>
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm text-slate-100 truncate">{c.title}</p>
                     <button onClick={(e) => { e.stopPropagation(); if (confirm('Excluir este calendário?')) { del.mutate(c.id); if (selectedId === c.id) setSelectedId(null); } }} className="text-slate-500 hover:text-rose-300 text-xs">✕</button>
