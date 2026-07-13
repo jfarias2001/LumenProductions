@@ -3,6 +3,7 @@ import { Pillar, PILLAR_GROUP_MAP, MIX_TARGETS } from '@content-engine/shared';
 import {
   useCalendars,
   useCalendar,
+  useAllCalendarItems,
   useGenerateCalendar,
   useSendCalendarItem,
   useSetItemAd,
@@ -189,14 +190,17 @@ function shortFormat(item: CalendarItem): string {
   return 'Reel';
 }
 
-function CalendarMonthView({ items, startDate }: { items: CalendarItem[]; startDate: string }) {
+/** Item da grade: um CalendarItem que PODE trazer o calendário de origem (visão geral). */
+type MonthItem = CalendarItem & { calendar?: { id: string; title: string } };
+
+function CalendarMonthView({ items, startDate }: { items: MonthItem[]; startDate?: string }) {
   const [cursor, setCursor] = useState(() => {
-    const d = new Date(startDate);
+    const d = startDate ? new Date(startDate) : new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
 
   // Agrupa itens por dia.
-  const byDay = new Map<string, CalendarItem[]>();
+  const byDay = new Map<string, MonthItem[]>();
   for (const it of items) {
     const k = dayKey(new Date(it.scheduledFor));
     const arr = byDay.get(k);
@@ -239,7 +243,7 @@ function CalendarMonthView({ items, startDate }: { items: CalendarItem[]; startD
               {dayItems.map((it) => (
                 <div
                   key={it.id}
-                  title={`${it.title} — ${shortFormat(it)}${it.cardId ? ' (no pipeline)' : ''}`}
+                  title={`${it.title} — ${shortFormat(it)}${it.calendar ? ` · ${it.calendar.title}` : ''}${it.cardId ? ' (no pipeline)' : ''}`}
                   className={`text-[10px] leading-tight rounded px-1 py-0.5 truncate border-l-2 ${it.isAd ? 'border-amber-400 bg-amber-500/10 text-amber-200' : 'bg-surface-800 text-slate-300'} ${PILLAR_DOT[it.pillar ?? ''] ?? ''}`}
                 >
                   {it.cardId ? '✓ ' : ''}{it.isAd ? '📣 ' : ''}{it.title}
@@ -255,6 +259,39 @@ function CalendarMonthView({ items, startDate }: { items: CalendarItem[]; startD
         <span>📣 = anúncio</span>
         <span>Borda colorida = pilar</span>
       </div>
+    </div>
+  );
+}
+
+// ── Visão geral: grade mensal com os itens de TODOS os calendários (PRD-013) ──────
+function GeneralCalendarView() {
+  const { data: items = [], isLoading } = useAllCalendarItems();
+  if (isLoading) return <p className="text-slate-500 text-sm">Carregando calendário geral…</p>;
+  if (!items.length) {
+    return (
+      <div className="surface-card p-8 text-center text-slate-500 text-sm">
+        Nenhum evento ainda. Gere um calendário para começar a preencher a agenda.
+      </div>
+    );
+  }
+  // Mês inicial = mês do evento mais próximo de hoje (mais útil ao abrir).
+  const now = Date.now();
+  const nearest = items.reduce(
+    (best, it) => {
+      const dist = Math.abs(new Date(it.scheduledFor).getTime() - now);
+      return dist < best.dist ? { dist, iso: it.scheduledFor } : best;
+    },
+    { dist: Infinity, iso: items[0]!.scheduledFor },
+  );
+  return (
+    <div className="space-y-3">
+      <div className="surface-card p-4 space-y-1">
+        <h3 className="text-base font-bold text-white">📅 Calendário geral</h3>
+        <p className="text-sm text-slate-400">
+          Eventos de todos os calendários ({items.length}). Selecione um calendário à esquerda para editar ou produzir os itens dele.
+        </p>
+      </div>
+      <CalendarMonthView items={items} startDate={nearest.iso} />
     </div>
   );
 }
@@ -385,6 +422,14 @@ export default function CalendarPage() {
 
             <div className="surface-card p-4 space-y-2">
               <h2 className="text-sm font-bold text-white">Calendários</h2>
+              {/* Visão geral unificada (todos os calendários) — ativa ao abrir a seção. */}
+              <div
+                className={`rounded-lg px-3 py-2 cursor-pointer border ${selectedId === null ? 'border-brand-500/50 bg-surface-800' : 'border-surface-700 hover:bg-surface-800/60'}`}
+                onClick={() => setSelectedId(null)}
+              >
+                <p className="text-sm text-slate-100">📅 Geral (todos)</p>
+                <p className="text-[10px] text-slate-500">Eventos de todos os calendários</p>
+              </div>
               {calendars.length === 0 && <p className="text-[11px] text-slate-500">Nenhum calendário ainda.</p>}
               {calendars.map((c) => (
                 <div key={c.id} className={`rounded-lg px-3 py-2 cursor-pointer border ${selectedId === c.id ? 'border-brand-500/50 bg-surface-800' : 'border-surface-700 hover:bg-surface-800/60'}`} onClick={() => setSelectedId(c.id)}>
@@ -403,13 +448,7 @@ export default function CalendarPage() {
 
           {/* Coluna direita: detalhe */}
           <div>
-            {selectedId ? (
-              <CalendarDetailView id={selectedId} aiOff={!!aiOff} />
-            ) : (
-              <div className="surface-card p-8 text-center text-slate-500 text-sm">
-                Gere um calendário ou selecione um existente para ver a sequência de posts.
-              </div>
-            )}
+            {selectedId ? <CalendarDetailView id={selectedId} aiOff={!!aiOff} /> : <GeneralCalendarView />}
           </div>
         </div>
       </div>

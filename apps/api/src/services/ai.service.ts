@@ -15,6 +15,7 @@ import {
   AICalendarOutputSchema,
   AIAdCreativeOutputSchema,
   GOLDEN_RULE_PROMPT,
+  HOOKS_GUIDE,
   MIX_TARGETS,
   MIN_HOOKS_TO_ADVANCE,
   VALIDATION_THRESHOLDS,
@@ -349,10 +350,11 @@ export async function angles(cardId: string, createdById?: string, conversation?
     where: { id: cardId },
     select: { title: true, persona: true, pain: true, promise: true, pillar: true },
   });
-  const system = `${await goldenRule()}\nVocê cria ângulos narrativos e hooks de abertura para Reels.`;
+  const system = `${await goldenRule()}\n${HOOKS_GUIDE}\nVocê cria ângulos narrativos e hooks de abertura para Reels.`;
   const user = `${dataBlock('Ideia aprovada', JSON.stringify(card))}${convoBlock(conversation)}
 
 Gere de 2 a 5 ângulos (tipos válidos: DOR, CULPA_TRANSFERIDA, OPORTUNIDADE, MEDO, AUTORIDADE) e de 5 a 10 hooks de abertura (primeiros 2 segundos).
+Aplique as 5 categorias do guia de hooks (pergunta provocativa, choque numérico, paradoxo, promessa específica, confissão), VARIANDO a categoria entre os hooks e mantendo 10–18 palavras por hook.
 Responda APENAS JSON: {"angles":[{"type":"DOR","text":"..."}],"hooks":["...","..."]}`;
 
   return run({ type: 'angles', cardId, createdById, system, user, schema: AIAnglesOutputSchema, schemaName: 'angles', temperature: 0.8 });
@@ -483,13 +485,13 @@ export async function adCreative(cardId: string, createdById?: string, conversat
     hooks: card.hooks.map((h) => h.text),
   };
 
-  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\n${META_ADS_CONTEXT}\nVocê é diretor(a) de criativos de PERFORMANCE e copywriter de RESPOSTA DIRETA. Entregue um criativo de anúncio PRONTO PARA VEICULAR — específico e acionável, sem generalidades.`;
+  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\n${META_ADS_CONTEXT}\n${HOOKS_GUIDE}\nVocê é diretor(a) de criativos de PERFORMANCE e copywriter de RESPOSTA DIRETA. Entregue um criativo de anúncio PRONTO PARA VEICULAR — específico e acionável, sem generalidades.`;
   const user = `${dataBlock('Card', JSON.stringify(ctx))}${convoBlock(conversation)}
 
 Produza o criativo de anúncio completo:
 - "script": roteiro de conversão (dor, quebra, mecanismo, beneficio, cta, durationSec entre 15 e 60).
 - Copy de anúncio: "primaryText" (texto principal persuasivo), "headline" (título curto), "description" (descrição do link), "ctaButton" (um entre: "Saiba mais", "Enviar mensagem", "Cadastre-se", "Comprar agora", "Baixar"), "copyVariations" (2 a 3 variações do texto principal para teste A/B).
-- Direção de edição para anúncio: use "format":"PESSOA_FALANDO" (apresentador falando à câmera — é OBRIGATÓRIO, não use outro formato); "hook" (gancho dos primeiros 3s p/ tráfego frio, dito pelo apresentador); "shotList" (decupagem cena a cena — a base é SEMPRE o apresentador falando à câmera; em "screenText"/"visual" indique quando inserir gravação de tela do sistema, print ou pequena animação SOBRE a fala, nunca substituindo o apresentador); "systemAssets" (quais telas/fluxos do SISTEMA gravar para inserir — screen recordings concretos, não animações de banco); "music" (trilha/estilo); "soundEffects" (efeitos sonoros pontuais); "voiceTone" (tom de voz/entonação do apresentador p/ conversão); "editingInsights" (cortes, ritmo, legendas queimadas, momentos de inserir a tela do sistema); "conversionTips" (dicas específicas de conversão no Meta Ads).
+- Direção de edição para anúncio: use "format":"PESSOA_FALANDO" (apresentador falando à câmera — é OBRIGATÓRIO, não use outro formato); "hook" (gancho dos primeiros 3s p/ tráfego frio, dito pelo apresentador — siga o guia de hooks: 10–18 palavras, uma das 5 categorias, sem apresentação/contexto); "shotList" (decupagem cena a cena — a base é SEMPRE o apresentador falando à câmera; em "screenText"/"visual" indique quando inserir gravação de tela do sistema, print ou pequena animação SOBRE a fala, nunca substituindo o apresentador); "systemAssets" (quais telas/fluxos do SISTEMA gravar para inserir — screen recordings concretos, não animações de banco); "music" (trilha/estilo); "soundEffects" (efeitos sonoros pontuais); "voiceTone" (tom de voz/entonação do apresentador p/ conversão); "editingInsights" (cortes, ritmo, legendas queimadas, momentos de inserir a tela do sistema); "conversionTips" (dicas específicas de conversão no Meta Ads).
 Responda APENAS JSON: {"script":{"dor":"...","quebra":"...","mecanismo":"...","beneficio":"...","cta":"...","durationSec":30},"primaryText":"...","headline":"...","description":"...","ctaButton":"Saiba mais","copyVariations":["..."],"format":"PESSOA_FALANDO","hook":"...","shotList":[{"scene":"apresentador à câmera ...","durationSec":3,"visual":"...","screenText":"inserir tela do sistema: ...","voiceover":"..."}],"systemAssets":["gravar tela: ..."],"music":"...","soundEffects":["..."],"voiceTone":"...","editingInsights":["..."],"conversionTips":["..."]}`;
 
   return run({ type: 'ad_creative', cardId, createdById, system, user, schema: AIAdCreativeOutputSchema, schemaName: 'ad_creative', temperature: 0.7 });
@@ -847,6 +849,7 @@ export async function generateCalendar(
 
   const system = `${await goldenRule()}
 ${INSTAGRAM_CONTEXT}
+${HOOKS_GUIDE}
 Você é estrategista de conteúdo e monta CALENDÁRIOS EDITORIAIS para Instagram (Reels e posts estáticos).
 Princípios:
 - Cada peça segue a Regra de Ouro (dor → falha do processo → mecanismo → posicionamento da Lumen).
@@ -874,6 +877,7 @@ Gere EXATAMENTE ${total} itens, distribuídos ao longo de ${periodDays} dia(s), 
 - ${input.adVideoCount} item(ns) de VÍDEO de ANÚNCIO para Meta Ads (contentType "VIDEO", "isAd" true, "format" "PESSOA_FALANDO") — focados em CONVERSÃO/tráfego pago, público frio, resposta direta. O anúncio é SEMPRE o apresentador falando à câmera (no máximo inserindo telas do sistema), nunca animação.
 Ordene os itens no array formando a melhor narrativa conectada — não precisa agrupar por tipo.
 Os títulos devem ser ÚNICOS entre si e NÃO repetir os títulos já usados (veja a Memória de conteúdo) — varie ângulo e abordagem.
+Cada TÍTULO funciona como o HOOK de abertura da peça: siga o guia de hooks (uma das 5 categorias, 10–18 palavras, sem apresentação nem contexto genérico) e varie a categoria ao longo do calendário.
 Pilares válidos: DOR_DONO_AGENCIA, QUEBRA_CRENCA, OPORTUNIDADE_TICKET, PRODUTO_MECANISMO, PROVA_BASTIDORES, OBJECOES, AUTORIDADE.
 format (opcional): PESSOA_FALANDO, PRINTS_PROCESSO, POV_DONO_AGENCIA, ANTES_DEPOIS, CHECKLIST, STORYTELLING, COMPARATIVO, TREND_ADAPTADA, SIMULACAO_CONVERSA, DEMONSTRACAO_PRODUTO.
 Responda APENAS JSON: {"theme":"fio condutor geral","items":[{"title":"hook/título","pillar":"DOR_DONO_AGENCIA","contentType":"VIDEO","format":"PESSOA_FALANDO","staticFormat":"IMAGEM_UNICA","isAd":false,"persona":"...","pain":"...","promise":"objetivo da peça","connection":"como conecta na sequência"}]}`;

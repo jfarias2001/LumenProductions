@@ -541,6 +541,29 @@ Ideias Brutas → Ideias Validadas → Ângulo Definido → Hooks em Teste → *
 
 ---
 
+## [2026-07-13] PRD-013 — Guia de hooks nos roteiros + visão geral do calendário
+
+**Motivação (relato do usuário):** (1) incluir na geração o conhecimento de um artigo de referência sobre **aberturas de Reels** (koko.ag) para os hooks/roteiros pararem de sair fracos; (2) ao abrir a seção Calendário, um **único calendário geral** deve abrir mostrando os eventos de **todos os calendários** juntos.
+
+### Shared (`packages/shared`)
+- `constants.ts`: nova constante **`HOOKS_GUIDE`** — destilado do artigo: 5 categorias (pergunta provocativa, choque numérico, paradoxo, promessa específica, confissão), regra dos primeiros 3s (retenção 65–80% com hook estruturado vs. 18–28% sem), comprimento 10–18 palavras, e os 3 erros a evitar (apresentação no seg. 0, contexto antes da provocação, hook genérico). Exemplos adaptados ao dono de agência. `dist` rebuildado.
+
+### Backend (`apps/api`)
+- **`ai.service.ts`**: importa `HOOKS_GUIDE` e injeta no `system` das gerações que criam abertura — `angles()` (ângulos & hooks), `adCreative()` (hook de 3s do anúncio) e `generateCalendar()` (os títulos funcionam como hook). Os user prompts pedem para aplicar/variar as 5 categorias e respeitar o comprimento. `copy`/`direction` inalterados (consomem hooks, não os criam).
+- **`calendar.service.ts`**: nova `listAllItems()` — todos os `EditorialCalendarItem` ordenados por `scheduledFor`, com `include: { calendar: { id, title } }`.
+- **`routes/calendar.ts`**: `GET /calendars/items/all` (perm. `viewBoard`) — caminho de 3 segmentos, sem conflito com `/calendars/:id`.
+- Sem mudança de schema/migration/pipeline/gates.
+
+### Frontend (`apps/web`)
+- **`hooks/useCalendar.ts`**: tipo `AllCalendarItem` (item + `calendar {id,title}`) e `useAllCalendarItems()` (`['calendar-items-all']`). As mutations (`generate`/`delete`/`send`/`setItemAd`/`autoProduce`) passam a invalidar também `['calendar-items-all']`.
+- **`CalendarPage.tsx`**: `CalendarMonthView` generalizado (`startDate` opcional → default hoje; itens podem trazer `calendar.title` no tooltip). Novo `GeneralCalendarView` (grade mensal dos itens de todos os calendários, mês inicial = evento mais próximo de hoje, read-only). A lista ganhou a entrada **"📅 Geral (todos)"**; `selectedId` inicia `null` → a seção **abre na visão geral**. Selecionar um calendário mostra o detalhe (`CalendarDetailView`) como antes; "Geral" volta à visão unificada.
+
+### Estado atual
+- Hooks/roteiros, hook do anúncio e títulos do calendário passam a seguir o guia de aberturas. O Calendário abre numa grade mensal unificada com os eventos de todos os calendários; a navegação por calendário individual (com envio ao pipeline, marcar anúncio, produzir tudo) continua igual. Pipeline, gates e schema **inalterados**; sem migração.
+- `pnpm --filter @content-engine/shared build`, `pnpm --filter api typecheck`, `pnpm --filter web typecheck` e `vite build` do web OK.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

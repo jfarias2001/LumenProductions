@@ -35,6 +35,12 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
     return calendarService.list();
   });
 
+  // Itens de TODOS os calendários (visão geral unificada, PRD-013). Caminho de 3
+  // segmentos — não conflita com /calendars/:id nem com /calendars/:id/...
+  fastify.get('/calendars/items/all', { preHandler: [requirePermission('viewBoard')] }, async () => {
+    return calendarService.listAllItems();
+  });
+
   fastify.get('/calendars/:id', { preHandler: [requirePermission('viewBoard')] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const calendar = await calendarService.getById(id);

@@ -174,6 +174,17 @@ export async function getById(id: string) {
   });
 }
 
+/**
+ * Todos os itens de TODOS os calendários (PRD-013), ordenados por data, com o
+ * nome do calendário de origem — alimenta a visão geral unificada do calendário.
+ */
+export async function listAllItems() {
+  return prisma.editorialCalendarItem.findMany({
+    orderBy: { scheduledFor: 'asc' },
+    include: { calendar: { select: { id: true, title: true } } },
+  });
+}
+
 export async function remove(id: string) {
   await prisma.editorialCalendar.delete({ where: { id } });
 }
