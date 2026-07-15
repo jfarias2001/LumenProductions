@@ -1,89 +1,117 @@
 /**
- * Base de conhecimento da Lumen Digital (PRD-012 / SPEC-012).
- * Fonte única do `CompanyProfile` singleton — o modelo de negócio WHITE LABEL da
- * landing page, estruturado nos campos do perfil. Reusado pelo seed principal
- * (`seed.ts`) e pelo script de conhecimento (`seed-knowledge.ts`).
+ * Base de conhecimento da LumenCRM (PRD-012 / PRD-015).
+ * Fonte única do `CompanyProfile` singleton — o modelo WHITE LABEL e as DIRETRIZES DE
+ * MARKETING (consultoria de 14/07/2026) estruturadas nos campos do perfil. Reusado
+ * pelo seed principal (`seed.ts`) e pelo script de conhecimento (`seed-knowledge.ts`).
  *
  * Embasa TODAS as gerações de IA via `buildCompanyContext()`, sempre como DADO.
- * Ajuste este arquivo (ou a tela /empresa) quando o posicionamento mudar.
+ * Ajuste este arquivo (ou a tela /empresa) quando o posicionamento/diretrizes mudarem.
+ * Limites do CompanyProfileSchema: about/offerings/mainPains/differentiators/proofCases ≤ 4000;
+ * toneOfVoice ≤ 2000; companyName ≤ 200.
  */
 import type { CompanyProfileInput } from '@content-engine/shared';
 
 export const LUMEN_COMPANY_PROFILE: CompanyProfileInput = {
-  companyName: 'Lumen Digital',
+  companyName: 'LumenCRM',
 
   about:
-    'A Lumen Digital é a estrutura WHITE LABEL completa para agências que querem vender tecnologia com a própria marca e criar uma nova fonte de RECEITA RECORRENTE. ' +
-    'Em vez de vender só serviço (trocar horas por dinheiro), a agência passa a REVENDER uma plataforma própria — CRM, IA, WhatsApp, automação, follow-up, agendamento, disparos, anúncios e gestão comercial — para os seus clientes, tudo com domínio, logo e identidade visual do parceiro. ' +
-    'A Lumen opera toda a tecnologia e infraestrutura nos bastidores e NUNCA fala com o cliente final. O parceiro é o único ponto de contato: ele define o preço e o ciclo, cobra o cliente diretamente, paga a Lumen por cliente ativo, e a diferença vira MARGEM RECORRENTE todo mês. A agência deixa de vender hora e passa a vender assinatura — vira dona de produto. ' +
-    'Não é "login e senha" de uma ferramenta genérica: há implantação orientada com a equipe, marca/domínio/ambiente configurados, treinamento do time do parceiro, suporte técnico próximo no arranque e acompanhamento até a primeira venda.',
+    'A LumenCRM é a plataforma WHITE LABEL completa para agências de marketing/tráfego: agente de IA no WhatsApp, CRM com follow-up automatizado, disparos, ligação com IA, e-mail marketing e TODO o processo comercial num só lugar — com a marca da agência. ' +
+    'Ela NÃO vende "mais uma ferramenta": dá ao dono de agência a SAÍDA do mercado de tráfego saturado — um NOVO PRODUTO para vender (o processo comercial com IA, white label), que aumenta o LTV dele e mexe diretamente no faturamento do cliente final. ' +
+    'PORTA DE ENTRADA da comunicação: a IA de atendimento white label (o hype que trava a atenção do dono de agência). PRODUTO REAL: o funil comercial inteiro no lugar. O CRM é a SUSTENTAÇÃO da promessa (onde está o resultado mensurável), NUNCA o gancho — o cliente precisa ser educado sobre como ganha dinheiro com o processo antes de valorizá-lo.',
 
   offerings:
-    'LumenCRM white label — uma operação de tecnologia inteira revendida com a marca do parceiro. +80 funcionalidades organizadas por objetivo de negócio: ' +
-    '• PARA VENDER MAIS: CRM visual com kanban automático, follow-up inteligente, agendamento direto pela IA, ações automáticas por etapa do funil, qualificação de leads em tempo real. ' +
-    '• PARA RETER CLIENTES: dashboard com 36+ métricas, histórico completo de conversas, relatórios automáticos, notificações no WhatsApp para o gestor, gestão de funis e estágios. ' +
-    '• PARA GERAR VALOR PERCEBIDO: multi-agentes de IA especializados, fluxos/chatbot com IA e classificador de intenção, ligações por IA com voz humana (ElevenLabs), disparos PRO com WhatsApp Business API, formulários do Meta nativos, inteligência de anúncios + ROI real, Facebook CAPI server-to-server. ' +
-    '• PARA OPERAR COMO SaaS: white label completo com domínio próprio, SMTP configurável, checkout por webhook que cria contas sozinho, permissões e departamentos por equipe, central de suporte e tickets. ' +
-    'Modelo de receita do parceiro: ASSINATURA RECORRENTE por cliente ativo (não hora de serviço). A Lumen cobra o parceiro por cliente ativo; a diferença é a margem do parceiro.',
+    'PROCESSO COMERCIAL COMPLETO COM IA, white label (com a marca do parceiro): IA que ATENDE e AGENDA no WhatsApp + CRM que MOVE o lead sozinho (follow-up e movimentações automáticas) + FOLLOW-UP automatizado que recupera quem esfriou + DISPAROS + LIGAÇÃO com IA + E-MAIL. É o funil inteiro, não um chatbot solto. ' +
+    'MENSAGENS CENTRAIS (pilares de conteúdo): ' +
+    '(1) NOVO PRODUTO — "o mercado de tráfego quebrou; quem cresce vende um produto diferente: processo comercial com IA, com a sua marca". ' +
+    '(2) RESULTADO/FATURAMENTO — "o dono de negócio só para para olhar quando vê um faturamento que ele não tem" (ex.: conversão 3%→7% dobra o faturamento; R$1.000/mês de recorrência por cliente; ~R$10 mil/mês de recorrência com a base). ' +
+    '(3) PROCESSO COMPLETO — "qualquer um pluga um GPT no WhatsApp; nós entregamos o funil inteiro (IA que atende e agenda, CRM que move o lead sozinho, follow-up que recupera quem esfriou, disparos, ligação com IA e e-mail)". ' +
+    '(4) LTV/RETENÇÃO — "seu cliente não cancela quando você mexe no faturamento dele". ' +
+    'LÓGICA ECONÔMICA (usar sempre): não dá pra cobrar R$1.500 por tráfego puro, mas dá pra cobrar R$1.000+/mês pelo processo comercial com IA; custo operacional baixo (sem gestor de tráfego, editor de vídeo nem CS extra); mexer no faturamento do cliente → LTV maior, churn menor, recorrência nova. Todo conteúdo é produzido para o INSTAGRAM (Reels e posts/carrossel).',
 
   personas: [
     {
-      name: 'Dono de agência de serviço (público-alvo)',
+      name: 'Dono de agência de marketing/tráfego (ICP primário)',
       description:
-        'Já vende serviço para empresas (tráfego, social media, gestão comercial, automação); tem operação comercial ou carteira de clientes; quer aumentar ticket e retenção dos clientes atuais e vender tecnologia com a própria marca; entende que implantação e suporte têm valor. Pode embutir o LumenCRM em pacotes que já vende.',
+        'Dono de agência pequena/média cujo principal produto é gestão de tráfego. Sente o mercado saturado, não consegue mais precificar tráfego e vê clientes cancelando. É o DECISOR e compra rápido quando enxerga a conta fechando. Já ouviu falar de IA de atendimento (o hype), mas ainda não entende o valor do CRM/processo completo. Sinal de qualificação máxima: já tentou montar atendimento com IA por conta própria (n8n/GPT/Evolution) e sentiu a dor de manter aquilo de pé.',
       pains:
-        'Vive só de serviço e deixa receita recorrente na mesa; cada novo cliente traz mais atendimento/suporte/reunião; a margem aperta conforme a equipe cresce; a operação depende de gente e trava quando alguém sai; retenção fraca — sem ferramenta integrada, o cliente acha que é só serviço e sai sem dor.',
+        'Gera lead mas o cliente não vende (não converte) → o cliente culpa a agência e cancela; LTV baixo / churn alto (recomeça todo mês); não consegue precificar (tráfego virou commodity ~R$300/conta); sem diferencial (faz o mesmo que milhares de agências); teme virar commodity e perder a agência.',
+    },
+    {
+      name: 'Gestor de tráfego solo / freelancer (ICP secundário)',
+      description:
+        'Está apanhando na prospecção e na precificação; quer escapar da guerra de preço virando "agência de solução", não de mídia. Entra bem pelo funil de conteúdo educativo (mini treinamento: "por que o tráfego sozinho não funciona mais").',
+      pains: 'CPM caro, cold call rejeitada, tráfego puro sem margem, sem produto próprio para vender.',
+    },
+    {
+      name: 'Mentores/educadores com alunos donos de agência (ICP terciário — perfil "Everton")',
+      description:
+        'Monetizam a ferramenta com a própria audiência/base de alunos; alto potencial de recorrência em escala (um mentor traz dezenas de contas white label).',
+      pains: 'Quer uma nova fonte de recorrência e um produto para oferecer à base sem operar tecnologia.',
     },
     {
       name: 'NÃO é público (anti-persona — não mirar)',
       description:
-        'Quem só quer testar uma ferramenta barata, não tem clientes/audiência/operação mínima, espera que o software venda sozinho, não quer investir em implantação ou busca a opção mais barata do mercado. O conteúdo NÃO deve falar com esse perfil nem competir por preço.',
+        'O EMPRESÁRIO FINAL (dono de clínica, loja etc.) é o cliente do NOSSO cliente — aparece nos exemplos e provas, mas a comunicação NÃO é para ele. Também não miramos curiosos de IA sem negócio rodando nem quem procura "só um chatbot barato". O conteúdo não fala com esse perfil nem compete por preço.',
       pains: '',
     },
   ],
 
   mainPains:
-    'Agência presa ao serviço: mais clientes = mais atendimento, suporte, cobrança e reunião; a margem aperta porque mais entrega exige mais equipe; a operação não escala (o fluxo depende de gente e trava quando alguém sai); a retenção é fraca porque o cliente enxerga só serviço e sai quando o resultado cai; o faturamento sobe mas a sobra diminui; falta receita recorrente e previsível.',
+    'DORES DE NEGÓCIO (priorize sempre): (1) "eu gero lead, mas o cliente não vende" → o cliente culpa a agência e cancela; (2) LTV baixo / churn alto → a agência vive recomeçando todo mês; (3) não consegue precificar → tráfego virou commodity (~R$300/conta); (4) sem diferencial → faz o mesmo que milhares de agências; (5) CAC alto da própria agência → CPM caro, cold call rejeitada. ' +
+    'DORES OPERACIONAIS: depende de time (gestor/editor/CS) para escalar; não controla o comercial do cliente; leads esfriam por falta de follow-up; ferramentas soltas (bot aqui, planilha ali, CRM de outro lado) que não conversam. ' +
+    'DORES EMOCIONAIS: cansaço de "vender tráfego" e apanhar na reunião; medo de ficar para trás na onda da IA; frustração de ver o concorrente oferecendo "IA" e ele sem resposta. ' +
+    'DESEJOS (o outro lado da dor): ter um produto próprio, com a marca dele, que ninguém na cidade tem; recorrência previsível que não depende de resultado de mídia; ser visto pelo cliente como parceiro de faturamento (não fornecedor de anúncio); escalar sem contratar.',
 
   toneOfVoice:
-    'Direto, específico para dono de agência, sem enrolação. Foco em modelo de negócio (serviço → produto/assinatura), margem e receita recorrente — não em "features de CRM". Honesto sobre "para quem é / não é" (o critério é maturidade, não preço). Usa prova sem prometer ganho garantido (o resultado depende da operação, carteira, nicho, oferta e execução do parceiro). Evita jargão vazio e o clichê de "CRM genérico".',
+    'Direto e concreto — números, casos, telas; zero abstração ("potencialize sua gestão" é proibido). De dono para dono — fale como quem opera agência e vive a dor, não como software house. Conversacional — natural, como conversa de call, sem roteiro engessado; gírias leves do nicho são bem-vindas (LTV, churn, cold call, passagem de bastão). Provocador na dor — nomeie a realidade sem rodeio ("o mercado de tráfego quebrou", "seu cliente vai cancelar"). Autoridade por prova — nunca "somos os melhores"; sempre "olha o que aconteceu aqui" (tela, print, caso, número). Anti-IA na escrita — a copy é feita à mão; se soar "de ChatGPT", converte menos.',
 
   differentiators:
-    'Não é ferramenta barata de massa: implantação orientada com a equipe, marca/domínio/ambiente configurados, treinamento do time do parceiro, suporte técnico próximo no arranque e acompanhamento até a primeira venda. White label de verdade — o cliente final nem sabe que a Lumen existe. Tecnologia mantida e atualizada pela Lumen. Recursos que os concorrentes não têm: multi-agentes de IA, ligações por IA com voz humana, Facebook CAPI (server-to-server), disparos PRO, formulários do Meta nativos, inteligência de anúncios + ROI real.',
+    'O FUNIL COMERCIAL INTEIRO no lugar (IA de atendimento + CRM + follow-up automatizado + movimentações automáticas + disparos + ligação com IA + e-mail), com a marca da agência — não um GPT solto no WhatsApp. White label de verdade: o cliente final nem sabe que a LumenCRM existe. A TELA do sistema vende (bonita e completa) — mostrar a tela é o nosso padrão-ouro de criativo. Recursos que a concorrência não tem: multi-agentes de IA, ligação por IA com voz humana, follow-up/movimentação automática que reativa o lead e agenda a call sozinho, disparos PRO, inteligência de anúncios + ROI real.',
 
   proofCases:
-    '+300 parceiros ativos; +8.000 usuários na plataforma; o maior parceiro fatura +R$ 400 mil/mês usando a operação como base. Sempre com ressalva honesta: resultado não é garantido — depende da operação comercial, carteira de clientes, nicho, oferta e execução de cada parceiro. É prova de potencial, não promessa de ganho.',
+    'Use com RESSALVA HONESTA (é prova de potencial, não promessa de ganho): ' +
+    'fechamento via follow-up/movimentação automática (lead reativado pelo CRM agendou e fechou na call); ' +
+    'lead que passou pela IA de atendimento (IARA) às 20h, agendou sozinho, confirmou e compareceu — atendimento e agendamento 100% IA em tempo real; ' +
+    'recorrência de ~R$10 mil/mês de um mentor com alunos donos de agência (perfil Everton); ' +
+    'base da plataforma: +300 parceiros ativos, +8.000 usuários, maior parceiro fatura +R$400 mil/mês. ' +
+    'Priorize captar e usar DEPOIMENTOS EM VÍDEO de white labels. O resultado depende da operação comercial, carteira, nicho, oferta e execução de cada parceiro.',
 
   dos: [
-    'Falar de transformação de modelo: parar de vender só serviço e virar dono de produto com receita recorrente',
-    'Explicar a matemática da margem: o parceiro cobra o cliente, paga a estrutura por cliente ativo e fica com a diferença todo mês',
-    'Reforçar o white label: marca, domínio e identidade do parceiro; a Lumen nunca fala com o cliente final',
-    'Usar as provas com ressalva honesta (+300 parceiros, +8k usuários, +R$400k/mês; resultado não garantido)',
-    'Enfatizar o valor de implantação, treinamento e suporte (não é só "login e senha")',
-    'Mirar o dono de agência com operação/carteira madura',
+    'Liderar pela IA de atendimento white label (o hype que trava a atenção) e então abrir o processo comercial completo com IA',
+    'Comunicar quanto e como a galera fatura, com números concretos (conversão 3%→7%, R$1.000/mês de recorrência por cliente, ~R$10 mil/mês com a base)',
+    'Mostrar a TELA DO SISTEMA (nosso maior ativo visual) e usar gancho forte nos 3 primeiros segundos',
+    'Estruturar todo criativo: gancho (0–3s) → desenvolvimento (mecanismo) → prova (tela/número/caso) → CTA de agendar call',
+    'Falar do negócio do dono de agência: LTV, churn, precificação, novo produto, recorrência',
+    'Usar as provas com ressalva honesta; priorizar casos e depoimentos de white labels',
   ],
 
   donts: [
-    'Não posicionar como "só mais um CRM" nem como ferramenta genérica de conversão de leads da própria agência',
-    'Não vender pelo menor preço nem por "sem taxa de setup" (o critério é maturidade, não preço)',
-    'Não prometer ganho garantido nem citar os números como promessa de resultado',
-    'Não falar com quem só quer testar ferramenta barata ou espera o software vender sozinho',
-    'Não expor ao cliente final que a tecnologia é da Lumen; não sugerir publicação/automação de postagem',
+    'Não vender "ferramenta" nem fazer demo de features soltas',
+    'Não liderar a comunicação com "CRM" (é sustentação, não gancho)',
+    'Não usar copy genérica com cara de IA/ChatGPT ("solução inovadora", "revolucione", "otimize seu atendimento")',
+    'Não usar "chatbot" — usar "agente de IA" / "IA de atendimento"',
+    'Não falar para o empresário final (o público é a AGÊNCIA)',
+    'Não prometer "viralizar" nem usar métrica de vaidade (seguidores não vende)',
+    'Não subir criativo sem gancho forte nos 3 primeiros segundos',
+    'Não competir por preço nem entrar na guerra do "bot barato"',
   ],
 
   keywords: [
+    'processo comercial com IA',
+    'IA de atendimento',
     'white label',
-    'receita recorrente',
-    'margem recorrente',
-    'revenda com a própria marca',
+    'com a sua marca',
+    'novo produto para a sua agência',
+    'funil inteiro no lugar',
+    'LTV',
+    'recorrência',
+    'follow-up automatizado',
+    'lead agendado sozinho',
+    'mexer no faturamento do seu cliente',
+    'CRM que move o lead sozinho',
+    'agente de IA no WhatsApp',
+    'ligação com IA',
     'dono de produto',
-    'assinatura',
-    'LumenCRM',
-    'operação de tecnologia',
-    'ticket e retenção',
-    'agência que só vende serviço',
-    'SaaS com a sua marca',
-    'escalar sem depender de horas',
   ],
 
   links: ['https://lumendigital.com.br', 'contato@lumendigital.com.br', '(62) 9281-5826'],

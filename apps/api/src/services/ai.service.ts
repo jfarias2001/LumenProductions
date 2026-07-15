@@ -16,6 +16,8 @@ import {
   AIAdCreativeOutputSchema,
   GOLDEN_RULE_PROMPT,
   HOOKS_GUIDE,
+  BRAND_VOICE_GUIDE,
+  CREATIVE_STRUCTURE_GUIDE,
   MIX_TARGETS,
   MIN_HOOKS_TO_ADVANCE,
   VALIDATION_THRESHOLDS,
@@ -192,7 +194,7 @@ export async function prospect(signalIds: string[], createdById?: string): Promi
     .map((s, i) => `Sinal ${i + 1} [${s.signalSource ?? 'N/A'}]: ${s.signalContent ?? s.title}`)
     .join('\n');
 
-  const system = `${await goldenRule()}\nVocê transforma sinais de mercado em ideias de Reels para dono de agência.`;
+  const system = `${await goldenRule()}\n${BRAND_VOICE_GUIDE}\nVocê transforma sinais de mercado em ideias de Reels para dono de agência.`;
   const user = `${dataBlock('Sinais do mercado', corpus)}${memoryBlock(await buildIdeaMemory())}
 
 Gere de 3 a 6 ideias de conteúdo. Para cada uma identifique o pilar mais adequado entre: DOR_DONO_AGENCIA, QUEBRA_CRENCA, OPORTUNIDADE_TICKET, PRODUTO_MECANISMO, PROVA_BASTIDORES, OBJECOES, AUTORIDADE.
@@ -204,7 +206,7 @@ Responda APENAS JSON no formato:
 
 // ── 2. Estruturação ─────────────────────────────────────────────────────────────
 export async function structure(rawText: string, cardId?: string, createdById?: string): Promise<AIStructureOutput> {
-  const system = `${await goldenRule()}\nVocê organiza um input solto (transcrição/nota/conversa) nos campos do template de um card.`;
+  const system = `${await goldenRule()}\n${BRAND_VOICE_GUIDE}\nVocê organiza um input solto (transcrição/nota/conversa) nos campos do template de um card.`;
   const user = `${dataBlock('Input bruto', rawText)}${memoryBlock(await buildIdeaMemory())}
 
 Extraia e infira os campos. Se o input for genérico, NÃO repita títulos já usados (veja a memória) — proponha um ângulo/título distinto. Pilares válidos: DOR_DONO_AGENCIA, QUEBRA_CRENCA, OPORTUNIDADE_TICKET, PRODUTO_MECANISMO, PROVA_BASTIDORES, OBJECOES, AUTORIDADE. Níveis de consciência: PROBLEMA, NOVA_PERSPECTIVA, IDENTIFICACAO, INTENCAO.
@@ -249,7 +251,7 @@ export async function improveIdea(cardId: string, v: AIValidateOutput, createdBy
     potencialComentarios: v.potencialComentarios,
     potencialComercial: v.potencialComercial,
   };
-  const system = `${await goldenRule()}\nVocê REFINA uma ideia de conteúdo que recebeu nota baixa na validação, reescrevendo-a para maximizar os 6 critérios e atingir SEGUIR_ROTEIRO (total ≥ ${VALIDATION_THRESHOLDS.SEGUIR_MIN} de ${VALIDATION_THRESHOLDS.MAX_SCORE}).`;
+  const system = `${await goldenRule()}\n${BRAND_VOICE_GUIDE}\nVocê REFINA uma ideia de conteúdo que recebeu nota baixa na validação, reescrevendo-a para maximizar os 6 critérios e atingir SEGUIR_ROTEIRO (total ≥ ${VALIDATION_THRESHOLDS.SEGUIR_MIN} de ${VALIDATION_THRESHOLDS.MAX_SCORE}).`;
   const user = `${dataBlock('Ideia atual', JSON.stringify(card))}
 ${dataBlock('Notas recebidas (0–3 por critério) e justificativas', JSON.stringify({ scores, justificativas: v.justificativas }))}
 
@@ -350,7 +352,7 @@ export async function angles(cardId: string, createdById?: string, conversation?
     where: { id: cardId },
     select: { title: true, persona: true, pain: true, promise: true, pillar: true },
   });
-  const system = `${await goldenRule()}\n${HOOKS_GUIDE}\nVocê cria ângulos narrativos e hooks de abertura para Reels.`;
+  const system = `${await goldenRule()}\n${HOOKS_GUIDE}\n${BRAND_VOICE_GUIDE}\nVocê cria ângulos narrativos e hooks de abertura para Reels.`;
   const user = `${dataBlock('Ideia aprovada', JSON.stringify(card))}${convoBlock(conversation)}
 
 Gere de 2 a 5 ângulos (tipos válidos: DOR, CULPA_TRANSFERIDA, OPORTUNIDADE, MEDO, AUTORIDADE) e de 5 a 10 hooks de abertura (primeiros 2 segundos).
@@ -374,10 +376,10 @@ export async function copy(cardId: string, createdById?: string, conversation?: 
     angulos: card.angles.map((a) => a.text),
     hooks: card.hooks.map((h) => h.text),
   };
-  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\nVocê escreve roteiro de Reel (30–45s) seguindo a Regra de Ouro, mais legenda e CTAs.`;
+  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\n${BRAND_VOICE_GUIDE}\n${CREATIVE_STRUCTURE_GUIDE}\nVocê escreve roteiro de Reel (30–45s) seguindo a Regra de Ouro, mais legenda e CTAs.`;
   const user = `${dataBlock('Card', JSON.stringify(ctx))}${convoBlock(conversation)}
 
-Escreva o roteiro estruturado (dor, quebra, mecanismo, beneficio, cta), textos de tela curtos, uma legenda e variações de CTA.
+Escreva o roteiro estruturado (dor, quebra, mecanismo, beneficio, cta) — esta é a estrutura gancho → desenvolvimento → prova → CTA: "dor" é o GANCHO dos 3 primeiros segundos (trava o dedo do dono de agência); "quebra"/"mecanismo" desenvolvem e apresentam o processo comercial com IA; a PROVA aparece na tela do sistema/número; "cta" leva a agendar uma call. Inclua textos de tela curtos, uma legenda e variações de CTA.
 Responda APENAS JSON: {"script":{"dor":"...","quebra":"...","mecanismo":"...","beneficio":"...","cta":"...","durationSec":40},"caption":"...","ctaVariations":["..."],"screenTexts":["..."]}`;
 
   return run({ type: 'copy', cardId, createdById, system, user, schema: AICopyOutputSchema, schemaName: 'copy', temperature: 0.7 });
@@ -390,7 +392,7 @@ export async function recycle(cardId: string, createdById?: string, conversation
     include: { script: true, copy: true },
   });
   const ctx = { title: card.title, pain: card.pain, script: card.script, caption: card.copy?.caption };
-  const system = `${await goldenRule()}\nVocê transforma uma peça vencedora em ativos derivados para outros canais.`;
+  const system = `${await goldenRule()}\n${BRAND_VOICE_GUIDE}\nVocê transforma uma peça vencedora em ativos derivados para outros canais.`;
   const user = `${dataBlock('Peça vencedora', JSON.stringify(ctx))}${convoBlock(conversation)}
 
 Gere de 3 a 6 ativos derivados. Tipos válidos: CARROSSEL, STORY, ANUNCIO, EMAIL, CORTE_SHORTS, POST_LINKEDIN, SCRIPT_SDR, HOOK_NOVO.
@@ -421,7 +423,7 @@ export async function direction(cardId: string, createdById?: string, conversati
   const staticDirective = isCarrossel
     ? 'O conteúdo é um CARROSSEL de Instagram (post estático com vários cards/slides, até 10): detalhe slide a slide os elementos visuais, a disposição na tela, fontes, tamanhos e cores.'
     : 'O conteúdo é uma IMAGEM ÚNICA de Instagram (UM só post estático, NÃO é carrossel nem sequência de slides): descreva a composição dessa imagem única.';
-  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\nVocê é diretor(a) de arte e produção. Entregue uma direção criativa PRONTA PARA EXECUTAR — específica e acionável, sem generalidades. ${
+  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\n${BRAND_VOICE_GUIDE}\n${CREATIVE_STRUCTURE_GUIDE}\nVocê é diretor(a) de arte e produção. Entregue uma direção criativa PRONTA PARA EXECUTAR — específica e acionável, sem generalidades. ${
     isStatic
       ? staticDirective
       : 'O conteúdo é VÍDEO (Reel vertical 9:16): detalhe a decupagem cena a cena, a direção de fala/entonação e os insights de edição.'
@@ -485,7 +487,7 @@ export async function adCreative(cardId: string, createdById?: string, conversat
     hooks: card.hooks.map((h) => h.text),
   };
 
-  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\n${META_ADS_CONTEXT}\n${HOOKS_GUIDE}\nVocê é diretor(a) de criativos de PERFORMANCE e copywriter de RESPOSTA DIRETA. Entregue um criativo de anúncio PRONTO PARA VEICULAR — específico e acionável, sem generalidades.`;
+  const system = `${await goldenRule()}\n${INSTAGRAM_CONTEXT}\n${META_ADS_CONTEXT}\n${HOOKS_GUIDE}\n${BRAND_VOICE_GUIDE}\n${CREATIVE_STRUCTURE_GUIDE}\nVocê é diretor(a) de criativos de PERFORMANCE e copywriter de RESPOSTA DIRETA. Entregue um criativo de anúncio PRONTO PARA VEICULAR — específico e acionável, sem generalidades.`;
   const user = `${dataBlock('Card', JSON.stringify(ctx))}${convoBlock(conversation)}
 
 Produza o criativo de anúncio completo:
@@ -850,6 +852,7 @@ export async function generateCalendar(
   const system = `${await goldenRule()}
 ${INSTAGRAM_CONTEXT}
 ${HOOKS_GUIDE}
+${BRAND_VOICE_GUIDE}
 Você é estrategista de conteúdo e monta CALENDÁRIOS EDITORIAIS para Instagram (Reels e posts estáticos).
 Princípios:
 - Cada peça segue a Regra de Ouro (dor → falha do processo → mecanismo → posicionamento da Lumen).

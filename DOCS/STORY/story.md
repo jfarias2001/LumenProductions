@@ -592,6 +592,34 @@ Identidade **"Lumen Glow"** (Lumen = luz): fundo **aurora** (gradientes radiais 
 
 ---
 
+## [2026-07-15] PRD-015 — Diretrizes de Marketing LumenCRM na geração de conteúdo
+
+**Motivação (relato do usuário):** o usuário entregou o documento oficial **"Diretrizes de Marketing — LumenCRM"** (v1.0, consultoria de Everton Rosa, 14/07/2026) e pediu para *"implementar isso no sistema, para os roteiros, copys etc. prompts e tudo mais."* O próprio documento declara que sua função é ser a fonte única de verdade e **"alimentar e treinar a IA interna de marketing (sistema criado pelo João)"** — este Content Engine.
+
+**Reconciliação com PRD-012:** as Diretrizes **evoluem** o posicionamento (não contradizem) — white label e receita recorrente seguem como substância; muda o enquadramento de venda: **produto real = processo comercial completo com IA** (IA que atende e agenda no WhatsApp + CRM que move o lead sozinho + follow-up automatizado + disparos + ligação com IA + e-mail); **porta de entrada = IA de atendimento white label** (o hype); **CRM = sustentação, nunca gancho**; dor central = o cliente da agência não converte → cancela → **LTV baixo/churn alto**; lógica econômica (R$1.500 tráfego → R$1.000+/mês processo comercial). Onde cada parte mora: posicionamento → `GOLDEN_RULE_PROMPT`; dados de marketing (ICP, dores, pilares, tom, provas, do's/don'ts, vocabulário) → `CompanyProfile` (editável em `/empresa`, semeado); instruções de "como escrever/produzir" → novas constantes-guia.
+
+### Shared (`packages/shared`)
+- `constants.ts`: **`GOLDEN_RULE_PROMPT` reescrito** para o posicionamento das Diretrizes (processo comercial com IA como produto real, IA de atendimento como porta de entrada, CRM como sustentação, dor "o cliente não vende → cancela → LTV baixo", lógica econômica, sequência dor → falha do processo → mecanismo → LumenCRM; mantém guardas de JSON/anti-injection). Novas constantes **`BRAND_VOICE_GUIDE`** (tom de voz §9 + o que NÃO falar §8 + vocabulário usa/evita) e **`CREATIVE_STRUCTURE_GUIDE`** (estrutura gancho 0–3s → desenvolvimento → prova → CTA + o que performa: tela do sistema/faturamento/vídeo falado dinâmico). `dist` rebuildado.
+
+### Backend (`apps/api`)
+- **`src/prisma/company-knowledge.ts`**: `LUMEN_COMPANY_PROFILE` reescrito a partir do documento — `companyName` `LumenCRM`; `about` (saída p/ o dono de agência, IA de atendimento como gancho, CRM sustentação); `offerings` (funil completo + as 4 mensagens centrais/pilares + lógica econômica + Instagram); `personas` (ICP primário/secundário/terciário perfil Everton + anti-persona); `mainPains` (mapa de dores negócio→operacional→emocional + desejos); `toneOfVoice` (6 atributos); `differentiators` (funil inteiro vs. GPT solto, a tela vende); `proofCases` (fechamento via follow-up automático, IA agendou às 20h, ~R$10k/mês do mentor, +300/+8k/+R$400k — com ressalva honesta); `dos`/`donts` (§7/§8/§9); `keywords` (vocabulário aprovado). Respeita os limites do `CompanyProfileSchema`.
+- **`src/services/ai.service.ts`**: importa `BRAND_VOICE_GUIDE`/`CREATIVE_STRUCTURE_GUIDE` e injeta por função (matriz da SPEC): `BRAND_VOICE_GUIDE` em `prospect`, `structure`, `improveIdea`, `angles`, `copy`, `direction`, `adCreative`, `recycle`, `generateCalendar`; `CREATIVE_STRUCTURE_GUIDE` em `copy`, `direction`, `adCreative`. `validate` fica enxuta (só pontua). O user prompt de `copy` passou a explicitar que o roteiro (dor/quebra/mecanismo/beneficio/cta) É a estrutura gancho → desenvolvimento → prova (tela do sistema/número) → CTA de agendar call.
+- **Sem alteração** em `seed.ts`/`seed-knowledge.ts` (já propagam `GOLDEN_RULE_PROMPT` e `LUMEN_COMPANY_PROFILE` por upsert), rotas, provider, `pipeline.service`, `calendar.service`, schema ou migrations.
+
+### Frontend (`apps/web`)
+- Sem mudança de código — a tela `/empresa` (`CompanyProfilePage`) exibe o perfil enriquecido, editável por ADMIN/GESTOR.
+
+### Estado atual
+- Toda geração (ideia, ângulos/hooks, roteiro/copy, direção, anúncio, calendário) passa a seguir as Diretrizes: liderar pela IA de atendimento white label / processo comercial com IA, usar o vocabulário aprovado e evitar o proibido ("chatbot", "revolucione", "otimize seu atendimento"), não liderar com "CRM", estruturar o criativo com gancho forte nos 3 primeiros segundos → prova na tela do sistema → CTA de call, falar com a agência (não o empresário final), sem guerra de preço. Pipeline, gates (`PipelineService`) e schema **inalterados**; sem migração.
+- `pnpm --filter @content-engine/shared build`, `pnpm --filter api typecheck` e `pnpm --filter web typecheck` OK. **Deploy:** rebuild dos containers + rodar `pnpm --filter api db:seed:knowledge` (a Regra de Ouro em uso vem do `AppSetting`, não da constante). Geração real com `OPENAI_API_KEY` é verificação de deploy.
+
+### Próximos passos sugeridos
+- Expor a edição da Regra de Ouro (`AppSetting.goldenRulePrompt`) e das constantes-guia na UI (hoje via seed/código).
+- Implementar as partes operacionais do documento que ficaram fora do escopo de geração: estrutura de campanhas de tráfego em camadas, métricas por camada, checklist de produção audiovisual.
+- Reavaliar se vale subir o modelo das gerações criativas (roteiro/anúncio/direção/calendário) de `gpt-4o-mini` para gpt-4o/4.1 agora que o contexto está muito mais rico.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 
