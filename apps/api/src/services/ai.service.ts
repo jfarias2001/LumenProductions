@@ -26,6 +26,7 @@ import {
   StaticFormat,
   CreativeFormat,
   Stage,
+  STAGE_LABELS,
   STAGE_ORDER,
   type AIProspectOutput,
   type AIStructureOutput,
@@ -45,6 +46,7 @@ import { calculateValidation } from './validation.service.js';
 import { transcript, appendGeneratedTurn } from './conversation.service.js';
 import { buildCompanyContext } from './company.service.js';
 import { pipelineService } from './pipeline.service.js';
+import { withSnapshot } from './snapshot.service.js';
 import { emitBoard } from '../lib/emitter.js';
 
 /**
@@ -670,7 +672,10 @@ export async function consolidateStage(cardId: string, stage: Stage, userId?: st
       code: 'EMPTY_CONVERSATION',
     });
   }
-  return persistStageFromSource(cardId, stage, userId, convo);
+  // Ponto de restauração antes de sobrescrever (desfazer — PRD-016).
+  return withSnapshot(cardId, `Consolidar — ${STAGE_LABELS[stage]}`, userId, () =>
+    persistStageFromSource(cardId, stage, userId, convo),
+  );
 }
 
 /** Resumo curto e legível do que a geração gravou, por entidade — vira o turno da IA no chat. */
@@ -725,7 +730,10 @@ export async function generateStage(
     throw Object.assign(new Error('Informe uma informação de partida para gerar a ideia.'), { code: 'NEED_CONTEXT' });
   }
 
-  const result = await persistStageFromSource(cardId, stage, userId, source);
+  // Ponto de restauração antes de sobrescrever os campos (desfazer — PRD-016).
+  const result = await withSnapshot(cardId, `Gerar com IA — ${STAGE_LABELS[stage]}`, userId, () =>
+    persistStageFromSource(cardId, stage, userId, source),
+  );
 
   const userText = source ? `✦ Gerar com IA — baseado em: ${source}` : '✦ Gerar com IA';
   await appendGeneratedTurn(cardId, stage, userId, userText, summarizeResultForChat(result));

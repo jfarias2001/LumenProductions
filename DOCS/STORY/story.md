@@ -620,6 +620,34 @@ Identidade **"Lumen Glow"** (Lumen = luz): fundo **aurora** (gradientes radiais 
 
 ---
 
+## [2026-07-20] PRD-016 — Desfazer geração da IA + edição manual livre
+
+**Motivação (relato do usuário):** *"à medida que vou gerando com IA ela altera as outras coisas — títulos etc. — e às vezes fica ruim. Quero um botão de desfazer destacado sempre após a criação da IA e mais liberdade para editar manualmente as informações dos cards."* Causa: toda geração grava por cima (`upsert`/`update`); em *Ideias Validadas* o `validateAndAutoCorrect` chega a reescrever título/persona/dor/promessa. Não havia ponto de restauração; a edição manual era presa ao fluxo por etapa (título só editável em *Ideias Brutas*).
+
+**Decisões (travadas com o usuário):** desfazer = **multi-nível (pilha)**; edição = **título no cabeçalho (sempre) + painel "Editar fundamentos" em qualquer etapa** (mantém o fluxo focado); **sem trava de campos** (a IA pode sobrescrever; recupera-se pelo Desfazer).
+
+### Backend (`apps/api`)
+- **Prisma**: novo modelo `CardSnapshot` (`label`, `stage`, `data Json`, `createdById`, índice `cardId,createdAt`) + relação `Card.snapshots`. Migration aditiva/idempotente `20260720000000_card_snapshots` (roda no boot via `prisma migrate deploy`).
+- **`src/services/snapshot.service.ts`** (novo): `captureSnapshot` (serializa só a subárvore que a IA sobrescreve — campos do card `title/persona/pain/promise/pillar/awareness/screenTexts/isAd/adPlan` + `Validation/Angle[]/Hook[]/Script/CreativeDirection/CopyContent/DerivedAsset[]`; poda em 20/‌card); `withSnapshot` (captura → executa → **apaga o snapshot se a geração falhar**, evitando fantasma); `listSnapshots`; `restoreLatest` (pop transacional: repõe escalares, upsert/‌delete das 1:1, deleteMany+createMany das coleções, `delete` do topo).
+- **Captura em todos os pontos de escrita da IA**: `ai.service.generateStage`/`consolidateStage` (envolvem `persistStageFromSource`) e as rotas `/ai/structure` (só com card), `/ai/validate`, `/ai/angles`, `/ai/copy`, `/ai/direction`, `/ai/ad-creative`, `/ai/recycle`. `autoProduceCard`/calendário **não** capturam (cards novos).
+- **Rotas**: `POST /cards/:id/undo` (`viewBoard` → `restoreLatest`; 409 `NO_SNAPSHOT` se vazio; emite `card.updated`; log `card.undo`); `GET /cards/:id` passou a incluir `snapshots {id,label,stage,createdAt}` (desc) para a UI.
+
+### Frontend (`apps/web`)
+- **`useBoard.ts`**: `useUndoGeneration(cardId)` (`POST /cards/:id/undo`; invalida card/board/deliverable).
+- **`CardDetail.tsx`**: `EditableTitle` (título editável no cabeçalho — clique → input, Enter/blur salva, Esc cancela) substitui o `<h2>` estático; **`UndoBar`** destacado (âmbar) logo abaixo do stepper sempre que há snapshots — mostra rótulo/‌hora do topo e nº de passos + botão **↩ Desfazer**; **`FundamentalsEditor`** recolhível (persona/dor/promessa/pilar/consciência via `PATCH /cards/:id`) renderizado em qualquer etapa exceto *Sinais*/*Ideias Brutas* (que já expõem os campos).
+- **`StageGenerator.tsx`**: no painel verde de sucesso, botão imediato **↩ Desfazer** (mesma mutation) + estado "geração desfeita".
+
+### Estado atual
+- Cada geração da IA cria um ponto de restauração; o usuário desfaz um passo por vez (pilha, cap 20). O botão fica destacado enquanto houver snapshots e aparece na hora após gerar. Falha da IA (502/503) não deixa snapshot. Título editável no cabeçalho e fundamentos editáveis em qualquer etapa. Pipeline, gates (`PipelineService`) e schemas de `shared` **inalterados** (só um campo de leitura `snapshots` no payload do card).
+- `pnpm -r typecheck` OK nos 3 pacotes; `prisma generate` OK. **Deploy:** rebuild dos containers (a migration roda no boot). Verificação real (gerar → desfazer) depende de Postgres + `OPENAI_API_KEY`.
+
+### Próximos passos sugeridos
+- Refazer (redo) e/ou navegar a pilha (escolher qual snapshot restaurar), não só o topo.
+- Opcional: trava por campo ("não sobrescrever o que editei") — ficou fora do escopo por complexidade.
+- Rótulo/‌diff visual do que cada geração mudou.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

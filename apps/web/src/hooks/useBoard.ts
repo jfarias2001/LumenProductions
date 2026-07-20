@@ -78,6 +78,19 @@ export function useConfirmValidation(cardId: string) {
   });
 }
 
+/** Desfaz a última geração da IA neste card (restaura o snapshot do topo — PRD-016). */
+export function useUndoGeneration(cardId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ cardId: string; remaining: number }>(`/cards/${cardId}/undo`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['card', cardId] });
+      void qc.invalidateQueries({ queryKey: ['board'] });
+      void qc.invalidateQueries({ queryKey: ['deliverable', cardId] });
+    },
+  });
+}
+
 export function useCreateCard() {
   const qc = useQueryClient();
   return useMutation({

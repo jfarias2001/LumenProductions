@@ -6,6 +6,7 @@ import { requirePermission, requireAuth } from '../plugins/auth.js';
 import { pipelineService } from '../services/pipeline.service.js';
 import { calculateValidation } from '../services/validation.service.js';
 import { evaluateRetention } from '../services/retention.service.js';
+import { restoreLatest } from '../services/snapshot.service.js';
 import { Stage } from '@content-engine/shared';
 import {
   CreateCardSchema,
@@ -103,10 +104,28 @@ export default async function cardRoutes(fastify: FastifyInstance) {
         stageHistory: { orderBy: { enteredAt: 'asc' } },
         comments: { include: { author: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } },
         aiJobs: { orderBy: { createdAt: 'desc' }, take: 10 },
+        // Pilha de desfazer (PRD-016): topo primeiro; a UI usa a contagem + rótulo.
+        snapshots: { select: { id: true, label: true, stage: true, createdAt: true }, orderBy: { createdAt: 'desc' } },
       },
     });
     if (!card) return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Card não encontrado.' } });
     return reply.send(card);
+  });
+
+  // ── POST /cards/:id/undo — desfazer a última geração da IA (PRD-016) ─────────
+  fastify.post('/cards/:id/undo', { preHandler: [requirePermission('viewBoard')] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const result = await restoreLatest(id);
+      await prisma.activityLog.create({ data: { cardId: id, actorId: request.actor.sub, action: 'card.undo', payload: { remaining: result.remaining } } });
+      emitBoard('card.updated', { id });
+      return reply.send(result);
+    } catch (err) {
+      if ((err as { code?: string })?.code === 'NO_SNAPSHOT') {
+        return reply.status(409).send({ error: { code: 'NO_SNAPSHOT', message: 'Nada para desfazer neste card.' } });
+      }
+      throw err;
+    }
   });
 
   // ── PATCH /cards/:id ───────────────────────────────────────────────────────

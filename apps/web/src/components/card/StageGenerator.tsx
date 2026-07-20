@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Stage } from '@content-engine/shared';
 import { useGenerate } from '../../hooks/useConversation.js';
+import { useUndoGeneration } from '../../hooks/useBoard.js';
 import { PILLAR_LABELS, AWARENESS_LABELS } from '../../lib/labels.js';
 
 interface Props {
@@ -63,6 +64,7 @@ function summaryLines(result: GenerateResult | undefined): { label: string; valu
  */
 export default function StageGenerator({ cardId, stage }: Props) {
   const generate = useGenerate(cardId, stage);
+  const undo = useUndoGeneration(cardId);
   const [context, setContext] = useState('');
 
   // Em Ideias Brutas o contexto é obrigatório (não há card preenchido para inferir).
@@ -115,7 +117,18 @@ export default function StageGenerator({ cardId, stage }: Props) {
 
       {generate.isSuccess && (
         <div className="surface-card bg-surface-900 border-emerald-500/30 p-3 space-y-2 animate-fade-in">
-          <p className="text-xs font-semibold text-emerald-300">✓ Gerado e gravado nos campos do card</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-emerald-300">✓ Gerado e gravado nos campos do card</p>
+            <button
+              onClick={() => undo.mutate(undefined, { onSuccess: () => generate.reset() })}
+              disabled={undo.isPending}
+              title="Desfaz esta geração e restaura o estado anterior"
+              className="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-100 border border-amber-500/50 hover:bg-amber-500/30 disabled:opacity-50 transition-colors"
+            >
+              {undo.isPending ? 'Desfazendo…' : '↩ Desfazer'}
+            </button>
+          </div>
+          {undo.isError && <p className="text-[11px] text-rose-400">Falha ao desfazer. Tente novamente.</p>}
           {summary.length > 0 && (
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
               {summary.map((l) => (

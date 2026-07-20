@@ -188,6 +188,7 @@ model Card {
   activityLogs   ActivityLog[]
   aiJobs         AIJob[]
   conversations  AIConversation[]
+  snapshots      CardSnapshot[]
   calendarItem   EditorialCalendarItem?
   archivedAt     DateTime?
   createdAt      DateTime       @default(now())
@@ -421,6 +422,20 @@ model AIJob {
 
   @@index([cardId])
   @@index([status])
+}
+
+// Pilha de pontos de restauração por card — desfazer geração da IA (PRD-016 / SPEC-016).
+model CardSnapshot {
+  id          String   @id @default(cuid())
+  cardId      String
+  card        Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label       String
+  stage       Stage
+  data        Json     // subárvore criativa serializada (campos do card + validation/angles/hooks/script/creative/copy/derivedAssets)
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([cardId, createdAt])
 }
 
 model AppSetting {

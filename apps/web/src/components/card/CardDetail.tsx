@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api.js';
 import { STAGE_LABELS, STAGE_ORDER, Stage, SignalSource, AwarenessLevel, Pillar, ContentClass, AngleType, HookStatus, CreativeFormat, RETENTION_QUESTIONS, MIN_HOOKS_TO_ADVANCE, SCRIPT_DURATION } from '@content-engine/shared';
 import { formatDate } from '../../lib/utils.js';
-import { useCard, useArchiveCard, useTransitionCard, useConfirmValidation } from '../../hooks/useBoard.js';
+import { useCard, useArchiveCard, useTransitionCard, useConfirmValidation, useUndoGeneration } from '../../hooks/useBoard.js';
 import { useAIStructure, useAIValidate, useAIAngles, useAICopy, useAIRecycle, useAIDirection } from '../../hooks/useAI.js';
 import { PILLAR_LABELS, AWARENESS_LABELS, PILLAR_BADGE, VERDICT_BADGE, ANGLE_LABELS, DERIVED_LABELS, CONTENT_TYPE_LABELS, SIGNAL_LABELS, CLASS_BADGE, FORMAT_LABELS } from '../../lib/labels.js';
 import AICopilotButton from './AICopilotButton.js';
@@ -82,7 +82,7 @@ export default function CardDetail({ cardId, onClose }: Props) {
               {(card as { isAd?: boolean }).isAd ? <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/40">📣 Anúncio</span> : null}
               {pillar && <span className={`badge ${PILLAR_BADGE[pillar] ?? 'bg-surface-700 text-slate-400'}`}>{PILLAR_LABELS[pillar] ?? pillar}</span>}
             </div>
-            <h2 className="text-base font-semibold text-white leading-tight">{card.title}</h2>
+            <EditableTitle title={card.title} onSave={(t) => updateCard.mutate({ title: t })} />
             <div className="mt-1.5">
               <StarRating
                 value={(card as { rating?: number | null }).rating ?? null}
@@ -115,6 +115,9 @@ export default function CardDetail({ cardId, onClose }: Props) {
             {/* Stepper das fases */}
             <StageStepper currentStage={cardStage} focusStage={stage} onPick={setFocusStage} />
 
+            {/* Desfazer geração da IA (PRD-016) — destacado enquanto houver snapshots */}
+            <UndoBar cardId={cardId} card={card} />
+
             {/* Painel da etapa em foco */}
             <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
               <div className="mb-4">
@@ -127,6 +130,11 @@ export default function CardDetail({ cardId, onClose }: Props) {
 
               <StagePanel stage={stage} cardId={cardId} card={card} onUpdate={(d) => updateCard.mutate(d)} />
 
+              {/* Editar fundamentos (PRD-016) — disponível em qualquer etapa exceto onde já aparecem */}
+              {stage !== Stage.SINAIS_MERCADO && stage !== Stage.IDEIAS_BRUTAS && (
+                <FundamentalsEditor card={card} onUpdate={(d) => updateCard.mutate(d)} />
+              )}
+
               <CommentsSection card={card} />
             </div>
 
@@ -134,6 +142,148 @@ export default function CardDetail({ cardId, onClose }: Props) {
             {stage === cardStage && <AdvanceBar cardId={cardId} stage={cardStage} />}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Título editável no cabeçalho (PRD-016) ────────────────────────────────────
+function EditableTitle({ title, onSave }: { title: string; onSave: (t: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(title);
+  useEffect(() => { setValue(title); }, [title]);
+
+  if (editing) {
+    const commit = () => {
+      const t = value.trim();
+      if (t && t !== title) onSave(t);
+      setEditing(false);
+    };
+    return (
+      <input
+        autoFocus
+        className="input-base text-base font-semibold"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          if (e.key === 'Escape') { setValue(title); setEditing(false); }
+        }}
+      />
+    );
+  }
+  return (
+    <h2
+      onClick={() => setEditing(true)}
+      title="Clique para editar o título"
+      className="group inline-flex items-start gap-1.5 text-base font-semibold text-white leading-tight cursor-text hover:text-brand-100"
+    >
+      <span>{title}</span>
+      <span className="shrink-0 mt-0.5 text-xs text-slate-600 group-hover:text-brand-400">✎</span>
+    </h2>
+  );
+}
+
+// ── Desfazer geração da IA (PRD-016) ──────────────────────────────────────────
+interface SnapshotSummary { id: string; label: string; stage: string; createdAt: string }
+
+function UndoBar({ cardId, card }: { cardId: string; card: Rec }) {
+  const undo = useUndoGeneration(cardId);
+  const snapshots = ((card.snapshots as SnapshotSummary[] | undefined) ?? []);
+  if (!snapshots.length) return null;
+  const top = snapshots[0]!;
+  return (
+    <div className="mx-5 mt-3 surface-card border-amber-500/40 bg-amber-500/[0.08] p-3 flex items-center gap-3 shrink-0 animate-fade-in">
+      <span className="text-lg leading-none">↩</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-amber-200">A IA alterou este card</p>
+        <p className="text-[11px] text-slate-400 truncate">
+          Última: {top.label} · {formatDate(top.createdAt)}{snapshots.length > 1 ? ` · ${snapshots.length} passos p/ desfazer` : ''}
+        </p>
+        {undo.isError && <p className="text-[11px] text-rose-400 mt-0.5">Falha ao desfazer. Tente novamente.</p>}
+      </div>
+      <button
+        onClick={() => undo.mutate()}
+        disabled={undo.isPending}
+        title="Desfaz a última geração e restaura o estado anterior"
+        className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-100 border border-amber-500/50 hover:bg-amber-500/30 disabled:opacity-50 transition-colors"
+      >
+        {undo.isPending ? 'Desfazendo…' : '↩ Desfazer'}
+      </button>
+    </div>
+  );
+}
+
+// ── Editar fundamentos da ideia (PRD-016) — recolhível, em qualquer etapa ──────
+function FundamentalsEditor({ card, onUpdate }: { card: Rec; onUpdate: (d: Rec) => void }) {
+  const [open, setOpen] = useState(false);
+  const [persona, setPersona] = useState('');
+  const [pain, setPain] = useState('');
+  const [promise, setPromise] = useState('');
+  const [pillar, setPillar] = useState('');
+  const [awareness, setAwareness] = useState('');
+
+  function openEditor() {
+    setPersona(String(card.persona ?? ''));
+    setPain(String(card.pain ?? ''));
+    setPromise(String(card.promise ?? ''));
+    setPillar(String(card.pillar ?? ''));
+    setAwareness(String(card.awareness ?? ''));
+    setOpen(true);
+  }
+
+  function save() {
+    onUpdate({
+      persona: persona.trim(),
+      pain: pain.trim(),
+      promise: promise.trim(),
+      ...(pillar ? { pillar } : {}),
+      ...(awareness ? { awareness } : {}),
+    });
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={openEditor}
+        className="mt-5 w-full text-left text-xs font-medium text-slate-400 hover:text-slate-200 surface-card bg-surface-850 px-3 py-2.5 flex items-center gap-2 transition-colors"
+      >
+        <span className="text-slate-500">▸</span> Editar fundamentos da ideia (persona, dor, promessa, pilar, consciência)
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-5 surface-card bg-surface-850 p-3 space-y-3">
+      <p className="text-xs font-semibold text-slate-300 flex items-center gap-2"><span className="text-slate-500">▾</span> Fundamentos da ideia</p>
+      <Field label="Persona">
+        <input className="input-base" value={persona} onChange={(e) => setPersona(e.target.value)} />
+      </Field>
+      <Field label="Dor">
+        <textarea className="input-base h-20 resize-none" value={pain} onChange={(e) => setPain(e.target.value)} />
+      </Field>
+      <Field label="Promessa">
+        <textarea className="input-base h-16 resize-none" value={promise} onChange={(e) => setPromise(e.target.value)} />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Pilar">
+          <select className="input-base" value={pillar} onChange={(e) => setPillar(e.target.value)}>
+            <option value="">—</option>
+            {Object.values(Pillar).map((p) => <option key={p} value={p}>{PILLAR_LABELS[p] ?? p}</option>)}
+          </select>
+        </Field>
+        <Field label="Nível de consciência">
+          <select className="input-base" value={awareness} onChange={(e) => setAwareness(e.target.value)}>
+            <option value="">—</option>
+            {Object.values(AwarenessLevel).map((a) => <option key={a} value={a}>{AWARENESS_LABELS[a] ?? a}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div className="flex gap-2">
+        <button className="btn-primary text-xs" onClick={save}>Salvar</button>
+        <button className="btn-ghost text-xs" onClick={() => setOpen(false)}>Cancelar</button>
       </div>
     </div>
   );
