@@ -52,6 +52,16 @@ export class AIOutputError extends Error {
   code = 'AI_OUTPUT_INVALID';
 }
 
+/**
+ * Modelos de raciocínio (o1/o3/o4…) e a família GPT-5 só aceitam `temperature = 1`
+ * (o default) e devolvem 400 para qualquer outro valor. Para esses, omitimos o
+ * parâmetro e deixamos o modelo usar o default. Modelos clássicos (gpt-4o, gpt-4o-mini,
+ * gpt-4-turbo, gpt-3.5…) continuam recebendo o `temperature` configurado.
+ */
+function supportsTemperature(model: string): boolean {
+  return !/^(o\d|gpt-5)/i.test(model);
+}
+
 class OpenAIProvider implements AIProvider {
   private client: OpenAI | null;
   readonly enabled: boolean;
@@ -74,7 +84,7 @@ class OpenAIProvider implements AIProvider {
 
     const completion = await this.client.chat.completions.create({
       model: usedModel,
-      temperature,
+      ...(supportsTemperature(usedModel) ? { temperature } : {}),
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: system },
@@ -113,7 +123,7 @@ class OpenAIProvider implements AIProvider {
     if (!onToken) {
       const completion = await this.client.chat.completions.create({
         model: usedModel,
-        temperature,
+        ...(supportsTemperature(usedModel) ? { temperature } : {}),
         messages,
       });
       return {
@@ -129,7 +139,7 @@ class OpenAIProvider implements AIProvider {
     // ── Streaming ────────────────────────────────────────────────────────────────
     const stream = await this.client.chat.completions.create({
       model: usedModel,
-      temperature,
+      ...(supportsTemperature(usedModel) ? { temperature } : {}),
       messages,
       stream: true,
       stream_options: { include_usage: true },
