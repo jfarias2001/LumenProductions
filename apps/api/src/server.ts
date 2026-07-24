@@ -14,6 +14,8 @@ import analyticsRoutes from './routes/analytics.js';
 import aiRoutes from './routes/ai.js';
 import conversationRoutes from './routes/conversations.js';
 import calendarRoutes from './routes/calendar.js';
+import v2Routes from './routes/v2.js';
+import promptRoutes from './routes/prompts.js';
 import { prisma } from './lib/prisma.js';
 
 const fastify = Fastify({ logger: { level: config.nodeEnv === 'production' ? 'info' : 'debug' } });
@@ -47,6 +49,8 @@ await fastify.register(analyticsRoutes, { prefix: '/api/v1' });
 await fastify.register(aiRoutes, { prefix: '/api/v1' });
 await fastify.register(conversationRoutes, { prefix: '/api/v1' });
 await fastify.register(calendarRoutes, { prefix: '/api/v1' });
+await fastify.register(v2Routes, { prefix: '/api/v1' });
+await fastify.register(promptRoutes, { prefix: '/api/v1' });
 
 // ── Health ────────────────────────────────────────────────────────────────────
 fastify.get('/health', async () => ({ ok: true, ts: new Date().toISOString() }));

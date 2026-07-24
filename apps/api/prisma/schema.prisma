@@ -128,6 +128,15 @@ enum StaticFormat {
   CARROSSEL
 }
 
+// Colunas do BOARD V2 (PRD-017) — board independente e leve, focado em copy.
+enum V2Stage {
+  RASCUNHO
+  COPY_PRONTA
+  APROVADO
+  PUBLICADO
+  ARQUIVADO
+}
+
 // ── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -444,7 +453,38 @@ model AppSetting {
   pillarGroupMap   Json
   weeklyTargets    Json
   goldenRulePrompt String
+  // Guias editáveis (PRD-017) — vazio = usa o padrão do código (constantes do shared).
+  brandVoiceGuide        String @default("")
+  creativeStructureGuide String @default("")
+  hooksGuide             String @default("")
   updatedAt        DateTime @updatedAt
+}
+
+// BOARD V2 (PRD-017) — card próprio do funil de criação com IA.
+model V2Card {
+  id             String   @id @default(cuid())
+  stage          V2Stage  @default(COPY_PRONTA)
+  idea           String
+  title          String
+  focus          String   @default("")
+  copy           String   @default("")
+  ctas           String[] @default([])
+  customPromptId String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([stage])
+}
+
+// Prompt personalizado reutilizável (PRD-017) — somado à Regra de Ouro na geração.
+model CustomPrompt {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ── Copiloto conversacional por fase (PRD-003 / SPEC-003) ─────────────────────

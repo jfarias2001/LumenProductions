@@ -3,6 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/auth.js';
 import Login from './pages/Login.js';
 import Board from './pages/Board.js';
+import BoardV2Page from './pages/BoardV2Page.js';
+import QuickCopyPage from './pages/QuickCopyPage.js';
+import PromptsPage from './pages/PromptsPage.js';
 import CompanyProfilePage from './pages/CompanyProfilePage.js';
 import CalendarPage from './pages/CalendarPage.js';
 
@@ -29,6 +32,30 @@ export default function App() {
         element={
           <RequireAuth>
             <Board />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/board-v2"
+        element={
+          <RequireAuth>
+            <BoardV2Page />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/copy-rapida"
+        element={
+          <RequireAuth>
+            <QuickCopyPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/prompts"
+        element={
+          <RequireAuth>
+            <PromptsPage />
           </RequireAuth>
         }
       />

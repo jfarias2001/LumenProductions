@@ -648,6 +648,38 @@ Identidade **"Lumen Glow"** (Lumen = luz): fundo **aurora** (gradientes radiais 
 
 ---
 
+## [2026-07-24] PRD-017 — BOARD V2 (funil de criação com IA) + Copy Rápida + Prompts editáveis
+
+**Motivação (relato do usuário):** novo processo de criação com IA em funil (**Ideias → Título → Foco → Copy**) numa nova aba Kanban **BOARD V2**; aba **Teste** para copy rápida a partir de um prompt; e **prompts fora do hardcode** — Regra de Ouro + guias visíveis/editáveis + **prompts personalizados** que o usuário soma na hora de gerar.
+
+**Decisões (travadas com o usuário):** BOARD V2 = **board separado/independente** (`V2Card` próprio); fim do funil **cria um card** com a copy pronta; prompt personalizado **SOMA** à Regra de Ouro (ouro sempre + extras); editáveis = **Regra de Ouro + os 3 guias** (voz, estrutura, hooks) + CRUD de personalizados.
+
+### Shared (`packages/shared`)
+- `enums.ts`: `enum V2Stage` (RASCUNHO/COPY_PRONTA/APROVADO/PUBLICADO/ARQUIVADO) + `V2_STAGE_ORDER`. `constants.ts`: `V2_STAGE_LABELS`. `schemas.ts`: `PromptChoiceSchema` (customPromptId/customPromptText), `PromptSettingsSchema`, `CustomPromptSchema`/`Update…`, inputs do funil (`V2Ideas/Titles/Focus/Copy`), `QuickCopyInputSchema`, outputs IA (`V2Ideas/Titles/Focus/CopyOutput`), `V2CreateCardSchema`/`V2UpdateCardSchema` + tipos. `dist` rebuildado.
+
+### Backend (`apps/api`)
+- **Prisma**: `enum V2Stage`; `model V2Card` (idea/title/focus/copy/ctas[]/customPromptId/stage); `model CustomPrompt`; `AppSetting` +3 campos (`brandVoiceGuide`/`creativeStructureGuide`/`hooksGuide`, default `""`). Migration idempotente `20260721000000_board_v2_and_prompts` (roda no boot).
+- **`promptKit.ts`** (novo): `getPromptKit()` = Regra de Ouro + 3 guias lidos do `AppSetting` com **fallback nas constantes** (vazio → comportamento idêntico ao anterior); `getPromptSettings()` (valores efetivos + flag `isDefault`) e `updatePromptSettings()`.
+- **`ai.service.ts`**: de-hardcode — `goldenRule(kit?)` e todas as funções que usavam `BRAND_VOICE_GUIDE`/`CREATIVE_STRUCTURE_GUIDE`/`HOOKS_GUIDE` agora leem do `kit`. Novas funções do funil `v2SuggestIdeas`/`v2SuggestTitles`/`v2SuggestFocus`/`v2ProduceCopy` + `quickCopy`, todas com `extraBlock` (prompt personalizado somado). `INSTAGRAM_CONTEXT`/`META_ADS_CONTEXT` seguem constantes.
+- **`v2.service.ts`** (novo): `resolveExtraPrompt` (CustomPrompt salvo + texto inline) e CRUD de `V2Card`.
+- **Rotas**: `routes/v2.ts` (`POST /v2/ideas|titles|focus|copy|quick-copy` sob `useAI`; `GET/POST/PATCH/DELETE /v2/cards`) e `routes/prompts.ts` (`GET/PUT /prompt-settings`, CRUD `/custom-prompts` sob `managePrompts`). Registradas no `server.ts`.
+
+### Frontend (`apps/web`)
+- Nav (`AppHeader`) + rotas (`App.tsx`): **BOARD V2** (`/board-v2`), **Copy Rápida** (`/copy-rapida`), **Prompts** (`/prompts`).
+- Hooks: `useV2.ts` (board/funil/quick copy/CRUD), `usePrompts.ts` (settings + custom prompts). `labels.ts`: `V2_STAGE_LABELS`/`V2_STAGE_ACCENT`.
+- `PromptPicker` (recolhível "Prompt de Ouro sempre + personalizado opcional"); `FunnelWizard` (4 passos, cada um chama a IA, escolhe e avança, cria o card V2); `V2CardDrawer` (editar título/foco/copy/CTAs + mudar coluna + excluir); `BoardV2Page` (Kanban dnd-kit próprio); `QuickCopyPage` (prompt livre → copy + CTAs, copiar/salvar como card V2); `PromptsPage` (editar Regra de Ouro + 3 guias com "usando padrão"/"restaurar padrão" + CRUD de personalizados; edição só ADMIN/GESTOR).
+
+### Estado atual
+- BOARD V2 independente com funil guiado ponta a ponta (cria card com copy pronta), Kanban com drag entre colunas. Copy rápida gera na hora. Regra de Ouro + guias editáveis na UI e refletem em TODA geração (pipeline atual incluído, via `promptKit`); prompts personalizados somam à Regra de Ouro no funil e na copy rápida. Pipeline atual, gates (`PipelineService`), cards e `Card` **inalterados**.
+- `pnpm --filter @content-engine/shared build`, `pnpm -r typecheck` (3 pacotes) e `vite build` do web OK; `prisma generate` OK. **Deploy:** rebuild dos containers (migration no boot); geração real depende de `OPENAI_API_KEY`.
+
+### Próximos passos sugeridos
+- Versionamento/histórico dos prompts; pré-popular os guias no seed (hoje ficam no fallback do código até serem editados).
+- Enviar um card do BOARD V2 para o pipeline principal, se desejado.
+- Escolha de prompt personalizado também nas gerações do pipeline atual.
+
+---
+
 *Atualize este arquivo ao concluir cada feature. Use o formato `[YYYY-MM-DD] Nome da fase/feature` como cabeçalho de seção.*
 
 

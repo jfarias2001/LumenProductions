@@ -116,6 +116,23 @@ export const PILLAR_BORDER: Record<string, string> = {
   [Pillar.AUTORIDADE]: 'border-l-violet-400/80',
 };
 
+/** BOARD V2 (PRD-017) — rótulos e acentos das colunas. */
+export const V2_STAGE_LABELS: Record<string, string> = {
+  RASCUNHO: 'Rascunho',
+  COPY_PRONTA: 'Copy Pronta',
+  APROVADO: 'Aprovado',
+  PUBLICADO: 'Publicado',
+  ARQUIVADO: 'Arquivado',
+};
+
+export const V2_STAGE_ACCENT: Record<string, { dot: string; bar: string }> = {
+  RASCUNHO: { dot: 'bg-slate-400', bar: 'from-slate-400/60' },
+  COPY_PRONTA: { dot: 'bg-brand-400', bar: 'from-brand-400/70' },
+  APROVADO: { dot: 'bg-teal-400', bar: 'from-teal-400/70' },
+  PUBLICADO: { dot: 'bg-emerald-400', bar: 'from-emerald-400/70' },
+  ARQUIVADO: { dot: 'bg-surface-600', bar: 'from-surface-600/60' },
+};
+
 export function enumLabel(value: string): string {
   return value.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 }

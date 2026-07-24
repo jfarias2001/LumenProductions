@@ -4,8 +4,11 @@ import { useAIStatus } from '../hooks/useAI.js';
 
 const links = [
   { to: '/board', label: 'Board' },
-  { to: '/empresa', label: 'Base da Empresa' },
+  { to: '/board-v2', label: 'BOARD V2' },
+  { to: '/copy-rapida', label: 'Copy Rápida' },
   { to: '/calendario', label: 'Calendário' },
+  { to: '/empresa', label: 'Base da Empresa' },
+  { to: '/prompts', label: 'Prompts' },
 ];
 
 /** Cabeçalho compartilhado (logo + navegação + status IA + usuário). */

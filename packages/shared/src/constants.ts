@@ -1,4 +1,4 @@
-import { Pillar, Stage } from './enums.js';
+import { Pillar, Stage, V2Stage } from './enums.js';
 
 // Thresholds de validação (SPEC-001 §8.1)
 export const VALIDATION_THRESHOLDS = {
@@ -123,6 +123,15 @@ export const STAGE_LABELS: Record<Stage, string> = {
   [Stage.ANALISE]: 'Análise',
   [Stage.ESCALAR_RECICLAR]: 'Escalar / Reciclar',
   [Stage.ARQUIVADO]: 'Arquivado',
+};
+
+// Colunas do BOARD V2 com rótulos pt-BR (PRD-017)
+export const V2_STAGE_LABELS: Record<V2Stage, string> = {
+  [V2Stage.RASCUNHO]: 'Rascunho',
+  [V2Stage.COPY_PRONTA]: 'Copy Pronta',
+  [V2Stage.APROVADO]: 'Aprovado',
+  [V2Stage.PUBLICADO]: 'Publicado',
+  [V2Stage.ARQUIVADO]: 'Arquivado',
 };
 
 // Perguntas padrão do gate de retenção (SPEC-001 §8.2)

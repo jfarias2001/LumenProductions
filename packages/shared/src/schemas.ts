@@ -12,6 +12,7 @@ import {
   Role,
   SignalSource,
   Stage,
+  V2Stage,
   ValidationVerdict,
 } from './enums.js';
 import { VALIDATION_THRESHOLDS, SCRIPT_DURATION } from './constants.js';
@@ -699,6 +700,63 @@ export const CreatePromptTemplateSchema = z.object({
 
 export const UpdatePromptTemplateSchema = CreatePromptTemplateSchema.partial().omit({ stage: true });
 
+// ── Prompts editáveis + personalizados (PRD-017) ───────────────────────────────
+
+/** Escolha de prompt na geração: personalizado SOMA à Regra de Ouro (id salvo e/ou texto inline). */
+export const PromptChoiceSchema = z.object({
+  customPromptId: z.string().optional(),
+  customPromptText: z.string().max(4000).optional(),
+});
+
+/** Regra de Ouro + 3 guias — edição parcial; vazio = usa o padrão do código. */
+export const PromptSettingsSchema = z.object({
+  goldenRulePrompt: z.string().max(20000).optional(),
+  brandVoiceGuide: z.string().max(20000).optional(),
+  creativeStructureGuide: z.string().max(20000).optional(),
+  hooksGuide: z.string().max(20000).optional(),
+});
+
+export const CustomPromptSchema = z.object({
+  title: z.string().min(1).max(120),
+  body: z.string().min(1).max(8000),
+});
+export const UpdateCustomPromptSchema = CustomPromptSchema.partial();
+
+// ── BOARD V2: funil de criação + copy rápida (PRD-017) ─────────────────────────
+
+export const V2IdeasInputSchema = z.object({ context: z.string().max(2000).optional() }).merge(PromptChoiceSchema);
+export const V2TitlesInputSchema = z.object({ idea: z.string().min(1).max(2000) }).merge(PromptChoiceSchema);
+export const V2FocusInputSchema = z.object({ idea: z.string().min(1).max(2000), title: z.string().min(1).max(500) }).merge(PromptChoiceSchema);
+export const V2CopyInputSchema = z
+  .object({ idea: z.string().min(1).max(2000), title: z.string().min(1).max(500), focus: z.string().min(1).max(500) })
+  .merge(PromptChoiceSchema);
+export const QuickCopyInputSchema = z.object({ prompt: z.string().min(1).max(4000) }).merge(PromptChoiceSchema);
+
+export const V2IdeasOutputSchema = z.object({
+  ideas: z.array(z.object({ idea: z.string(), note: z.string().optional() })).min(1),
+});
+export const V2TitlesOutputSchema = z.object({ titles: z.array(z.string()).min(1) });
+export const V2FocusOutputSchema = z.object({
+  focuses: z.array(z.object({ focus: z.string(), description: z.string().optional() })).min(1),
+});
+export const V2CopyOutputSchema = z.object({ copy: z.string(), ctas: z.array(z.string()).default([]) });
+
+export const V2CreateCardSchema = z.object({
+  idea: z.string().min(1).max(2000),
+  title: z.string().min(1).max(500),
+  focus: z.string().max(500).optional(),
+  copy: z.string().max(8000).optional(),
+  ctas: z.array(z.string()).optional(),
+  customPromptId: z.string().optional(),
+});
+export const V2UpdateCardSchema = z.object({
+  stage: z.nativeEnum(V2Stage).optional(),
+  title: z.string().min(1).max(500).optional(),
+  focus: z.string().max(500).optional(),
+  copy: z.string().max(8000).optional(),
+  ctas: z.array(z.string()).optional(),
+});
+
 // ── Inferred types ────────────────────────────────────────────────────────────
 
 export type LoginInput = z.infer<typeof LoginSchema>;
@@ -743,3 +801,18 @@ export type AICalendarItem = z.infer<typeof AICalendarItemSchema>;
 export type AICalendarOutput = z.infer<typeof AICalendarOutputSchema>;
 export type AIAdCreativeOutput = z.infer<typeof AIAdCreativeOutputSchema>;
 export type AIAdCreativeInput = z.infer<typeof AIAdCreativeInputSchema>;
+export type PromptChoiceInput = z.infer<typeof PromptChoiceSchema>;
+export type PromptSettingsInput = z.infer<typeof PromptSettingsSchema>;
+export type CustomPromptInput = z.infer<typeof CustomPromptSchema>;
+export type UpdateCustomPromptInput = z.infer<typeof UpdateCustomPromptSchema>;
+export type V2IdeasInput = z.infer<typeof V2IdeasInputSchema>;
+export type V2TitlesInput = z.infer<typeof V2TitlesInputSchema>;
+export type V2FocusInput = z.infer<typeof V2FocusInputSchema>;
+export type V2CopyInput = z.infer<typeof V2CopyInputSchema>;
+export type QuickCopyInput = z.infer<typeof QuickCopyInputSchema>;
+export type V2IdeasOutput = z.infer<typeof V2IdeasOutputSchema>;
+export type V2TitlesOutput = z.infer<typeof V2TitlesOutputSchema>;
+export type V2FocusOutput = z.infer<typeof V2FocusOutputSchema>;
+export type V2CopyOutput = z.infer<typeof V2CopyOutputSchema>;
+export type V2CreateCardInput = z.infer<typeof V2CreateCardSchema>;
+export type V2UpdateCardInput = z.infer<typeof V2UpdateCardSchema>;

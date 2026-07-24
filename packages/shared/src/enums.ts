@@ -142,6 +142,25 @@ export enum AIJobStatus {
   FAILED = 'failed',
 }
 
+/**
+ * Colunas do BOARD V2 (PRD-017) — board independente e leve, focado em copy.
+ * Sem gates: o funil cria em COPY_PRONTA e o usuário move livremente.
+ */
+export enum V2Stage {
+  RASCUNHO = 'RASCUNHO',
+  COPY_PRONTA = 'COPY_PRONTA',
+  APROVADO = 'APROVADO',
+  PUBLICADO = 'PUBLICADO',
+  ARQUIVADO = 'ARQUIVADO',
+}
+
+export const V2_STAGE_ORDER: V2Stage[] = [
+  V2Stage.RASCUNHO,
+  V2Stage.COPY_PRONTA,
+  V2Stage.APROVADO,
+  V2Stage.PUBLICADO,
+];
+
 // Tipo de conteúdo do card — define o formato do entregável final (PRD-003)
 export enum ContentType {
   VIDEO = 'VIDEO',
